@@ -1,0 +1,86 @@
+# Gz Harmonic <-> ROS 2 bridge configuration
+# Used by all simulation modes via ros_gz_bridge parameter_bridge
+
+# Clock (Gz -> ROS)
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# Diff drive command (ROS -> Gz)
+- ros_topic_name: "/agv/shaped_cmd_vel"
+  gz_topic_name: "/agv/shaped_cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# Wheel odometry (Gz -> ROS)
+- ros_topic_name: "/agv/wheel_odom"
+  gz_topic_name: "/agv/wheel_odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+# Joint states (Gz -> ROS)
+- ros_topic_name: "/agv/joint_states"
+  gz_topic_name: "/agv/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+# Left camera RGB (Gz -> ROS)
+- ros_topic_name: "/zed/zed_node/left/image_rect_color"
+  gz_topic_name: "/zed_left/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Left camera info (Gz -> ROS)
+- ros_topic_name: "/zed/zed_node/left/camera_info"
+  gz_topic_name: "/zed_left/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# Depth image (Gz -> ROS)
+- ros_topic_name: "/zed/zed_node/depth/depth_registered"
+  gz_topic_name: "/zed_left/depth_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Point cloud (Gz -> ROS)
+- ros_topic_name: "/zed/zed_node/point_cloud/cloud_registered"
+  gz_topic_name: "/zed_left/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS
+
+# Right camera RGB (Gz -> ROS)
+- ros_topic_name: "/zed/zed_node/right/image_rect_color"
+  gz_topic_name: "/zed_right/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Right camera info (Gz -> ROS)
+- ros_topic_name: "/zed/zed_node/right/camera_info"
+  gz_topic_name: "/zed_right/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# IMU (Gz -> ROS)
+- ros_topic_name: "/zed/zed_node/imu/data"
+  gz_topic_name: "/zed_imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# Lidar (Gz -> ROS)
+- ros_topic_name: "/agv/scan"
+  gz_topic_name: "/lidar/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS

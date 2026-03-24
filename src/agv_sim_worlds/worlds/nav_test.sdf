@@ -1,18 +1,43 @@
 <?xml version="1.0"?>
-<sdf version="1.6">
+<sdf version="1.9">
   <world name="nav_test">
 
+    <!-- Gz System Plugins -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
+    </plugin>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands">
+    </plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu">
+    </plugin>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact">
+    </plugin>
+
     <!-- Physics -->
-    <physics type="ode">
+    <physics name="default" type="dart">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1.0</real_time_factor>
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
 
     <!-- Lighting -->
-    <include>
-      <uri>model://sun</uri>
-    </include>
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
 
     <!-- Ground Plane -->
     <model name="ground_plane">
@@ -42,7 +67,6 @@
     </model>
 
     <!-- ═══════════════ Outer Walls (~10m x 10m room) ═══════════════ -->
-    <!-- North wall -->
     <model name="wall_north">
       <static>true</static>
       <pose>5 5 1 0 0 0</pose>
@@ -54,7 +78,6 @@
       </link>
     </model>
 
-    <!-- South wall -->
     <model name="wall_south">
       <static>true</static>
       <pose>5 -5 1 0 0 0</pose>
@@ -66,7 +89,6 @@
       </link>
     </model>
 
-    <!-- West wall -->
     <model name="wall_west">
       <static>true</static>
       <pose>0 0 1 0 0 0</pose>
@@ -78,7 +100,6 @@
       </link>
     </model>
 
-    <!-- East wall -->
     <model name="wall_east">
       <static>true</static>
       <pose>10 0 1 0 0 0</pose>
@@ -91,7 +112,6 @@
     </model>
 
     <!-- ═══════════════ Internal walls creating corridors ═══════════════ -->
-    <!-- Horizontal divider (creates two corridors) -->
     <model name="divider_h">
       <static>true</static>
       <pose>5 0 1 0 0 0</pose>
@@ -103,7 +123,6 @@
       </link>
     </model>
 
-    <!-- Vertical corridor wall -->
     <model name="divider_v">
       <static>true</static>
       <pose>3 2.5 1 0 0 0</pose>

@@ -1,5 +1,5 @@
 """
-Spawn the AGV robot URDF into Gazebo.
+Spawn the AGV robot URDF into Gz Sim.
 
 Reusable robot spawner used by all sim launch files.
 Publishes robot_description and spawns the model at a configurable pose.
@@ -27,13 +27,9 @@ def generate_launch_description():
     y = LaunchConfiguration('y')
     z = LaunchConfiguration('z')
     yaw = LaunchConfiguration('yaw')
-    publish_odom_tf = LaunchConfiguration('publish_odom_tf')
 
     robot_description = ParameterValue(
-        Command([
-            'xacro ', xacro_file,
-            ' publish_odom_tf:=', publish_odom_tf,
-        ]),
+        Command(['xacro ', xacro_file]),
         value_type=str,
     )
 
@@ -43,8 +39,6 @@ def generate_launch_description():
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('z', default_value='0.2'),
         DeclareLaunchArgument('yaw', default_value='0.0'),
-        DeclareLaunchArgument('publish_odom_tf', default_value='false',
-                              description='Let diff_drive publish odom->base_link TF (true for teleop, false for EKF modes)'),
 
         # Robot state publisher
         Node(
@@ -52,18 +46,21 @@ def generate_launch_description():
             executable='robot_state_publisher',
             name='robot_state_publisher',
             namespace=ns,
-            parameters=[{'robot_description': robot_description}],
+            parameters=[{
+                'robot_description': robot_description,
+                'use_sim_time': True,
+            }],
             output='screen',
         ),
 
-        # Spawn robot into Gazebo
+        # Spawn robot into Gz Sim
         Node(
-            package='gazebo_ros',
-            executable='spawn_entity.py',
+            package='ros_gz_sim',
+            executable='create',
             name='spawn_agv',
             namespace=ns,
             arguments=[
-                '-entity', 'agv',
+                '-name', 'agv',
                 '-topic', 'robot_description',
                 '-x', x,
                 '-y', y,

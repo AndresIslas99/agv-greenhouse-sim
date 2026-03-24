@@ -1,30 +1,27 @@
 <?xml version="1.0"?>
 <!--
-  AGV Simulation Robot Description
+  AGV Simulation Robot Description (Gz Harmonic)
 
   All dimensions from src/agv_sim_description/config/robot_params.yaml
   Override via xacro args or launch parameters if needed.
 
   TF chain produced:
     base_link
-      ├── left_wheel     (continuous joint, driven by Gazebo diff_drive)
-      ├── right_wheel    (continuous joint, driven by Gazebo diff_drive)
-      ├── base_footprint (fixed, at ground level)
-      ├── zed_camera_link (fixed, at ZED 2i position)
-      │    ├── zed_camera_center
-      │    ├── zed_left_camera_frame → zed_left_camera_optical_frame
-      │    ├── zed_right_camera_frame → zed_right_camera_optical_frame
-      │    └── imu_link
-      ├── laser_frame    (fixed, front-mounted)
-      ├── front_caster   (fixed, for sim stability)
-      └── rear_caster    (fixed, for sim stability)
+      left_wheel     (continuous joint, driven by Gz DiffDrive)
+      right_wheel    (continuous joint, driven by Gz DiffDrive)
+      base_footprint (fixed, at ground level)
+      zed_camera_link (fixed, at ZED 2i position)
+           zed_camera_center
+           zed_left_camera_frame, zed_right_camera_frame
+           imu_link
+      laser_frame    (fixed, front-mounted)
+      front_caster   (fixed, for sim stability)
+      rear_caster    (fixed, for sim stability)
 
-  Gazebo plugins:
-    - libgazebo_ros_diff_drive.so (reads shaped_cmd_vel from drive shaping node)
-    - libgazebo_ros_camera.so (ZED 2i left: RGB + depth + point cloud)
-    - libgazebo_ros_camera.so (ZED 2i right: RGB)
-    - libgazebo_ros_imu_sensor.so (ZED 2i IMU at 400Hz)
-    - libgazebo_ros_ray_sensor.so (2D lidar, supplementary)
+  Gz Harmonic plugins:
+    gz sim diff drive system (reads shaped_cmd_vel from drive shaping node)
+    gz sim joint state publisher system (publishes joint states for robot_state_publisher)
+    Sensors: depth_camera, camera, imu, gpu_lidar (bridged to ROS via ros_gz_bridge)
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="agv">
 
@@ -34,9 +31,6 @@
   <xacro:arg name="right_wheel_y" default="-0.3675"/>
   <xacro:arg name="wheel_z"       default="-0.1375"/>
   <xacro:arg name="wheel_width"   default="0.05"/>
-
-  <!-- Diff drive TF control — set via launch arg for different modes -->
-  <xacro:arg name="publish_odom_tf" default="false"/>
 
   <!-- Include components -->
   <xacro:include filename="$(find agv_sim_description)/urdf/agv_base_sim.xacro"/>
@@ -62,41 +56,38 @@
     width="$(arg wheel_width)"/>
 
   <!-- ═══════════════════════════════════════════════════════ -->
-  <!--  Gazebo Diff-Drive Plugin                              -->
+  <!--  Gz Harmonic Diff-Drive Plugin                         -->
   <!-- ═══════════════════════════════════════════════════════ -->
   <gazebo>
-    <plugin name="diff_drive_controller" filename="libgazebo_ros_diff_drive.so">
-      <ros>
-        <remapping>cmd_vel:=cmd_vel</remapping>
-      </ros>
-
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
       <!-- Joints -->
       <left_joint>left_wheel_joint</left_joint>
       <right_joint>right_wheel_joint</right_joint>
 
       <!-- Kinematics -->
       <wheel_separation>0.735</wheel_separation>
-      <wheel_diameter>0.125</wheel_diameter>
+      <wheel_radius>0.0625</wheel_radius>
 
-      <!-- Limits -->
-      <max_wheel_torque>20.0</max_wheel_torque>
-      <max_wheel_acceleration>1.0</max_wheel_acceleration>
-
-      <!-- Odometry output -->
-      <publish_odom>true</publish_odom>
-      <publish_odom_tf>$(arg publish_odom_tf)</publish_odom_tf>
-      <publish_wheel_tf>true</publish_wheel_tf>
+      <!-- Topics (Gz Transport — bridged to ROS via ros_gz_bridge) -->
+      <topic>/agv/shaped_cmd_vel</topic>
+      <odom_topic>/agv/wheel_odom</odom_topic>
+      <tf_topic>/agv/tf</tf_topic>
 
       <!-- Frames -->
-      <odometry_frame>odom</odometry_frame>
-      <robot_base_frame>base_link</robot_base_frame>
-
-      <!-- Topics -->
-      <command_topic>shaped_cmd_vel</command_topic>
-      <odometry_topic>wheel_odom</odometry_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_link</child_frame_id>
 
       <!-- Rate -->
-      <update_rate>50.0</update_rate>
+      <odom_publish_frequency>50</odom_publish_frequency>
+    </plugin>
+  </gazebo>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  Joint State Publisher (for wheel TF via robot_state_publisher) -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>/agv/joint_states</topic>
     </plugin>
   </gazebo>
 
