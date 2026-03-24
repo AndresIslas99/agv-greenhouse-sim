@@ -1,0 +1,50 @@
+# AprilTag Markers Registry for AGV Greenhouse Simulation
+#
+# Family: tag36h11
+# Positions match the apriltag models placed in greenhouse_simple.world
+# All poses are in the map frame.
+#
+# These markers serve as pose anchors for localization correction.
+# The fake_marker_detector node uses this registry to simulate
+# detection when the robot is within detection_range of a marker.
+
+markers:
+  detection_range: 2.0  # meters — robot must be within this range to "detect" a tag
+  family: "tag36h11"
+
+  tags:
+    - id: 0
+      description: "West corridor end (near entrance)"
+      pose:
+        position: {x: 1.0, y: 0.0, z: 1.0}
+        orientation: {x: 0.0, y: 0.0, z: 0.7071068, w: 0.7071068}  # facing east (yaw=pi/2)
+
+    - id: 1
+      description: "East corridor end"
+      pose:
+        position: {x: 29.0, y: 0.0, z: 1.0}
+        orientation: {x: 0.0, y: 0.0, z: -0.7071068, w: 0.7071068}  # facing west (yaw=-pi/2)
+
+    - id: 2
+      description: "Aisle 1-2 entrance (west side)"
+      pose:
+        position: {x: 6.0, y: -4.4, z: 1.0}
+        orientation: {x: 0.0, y: 0.0, z: 0.7071068, w: 0.7071068}
+
+    - id: 3
+      description: "Aisle 3-4 entrance (west side)"
+      pose:
+        position: {x: 6.0, y: 0.0, z: 1.0}
+        orientation: {x: 0.0, y: 0.0, z: 0.7071068, w: 0.7071068}
+
+    - id: 4
+      description: "Aisle 5-6 entrance (west side)"
+      pose:
+        position: {x: 6.0, y: 4.4, z: 1.0}
+        orientation: {x: 0.0, y: 0.0, z: 0.7071068, w: 0.7071068}
+
+    - id: 5
+      description: "Starting area"
+      pose:
+        position: {x: 2.5, y: -5.0, z: 1.0}
+        orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}  # facing north (yaw=0)
