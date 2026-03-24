@@ -5,8 +5,10 @@ Launches:
   - Gazebo with greenhouse_simple.world
   - Robot spawned at starting position
   - Robot state publisher (sim URDF)
-  - Diff drive plugin provides wheel_odom and accepts cmd_vel
-  - IMU sensor publishes imu/data
+  - ODrive-realistic drive shaping node (cmd_vel → shaped_cmd_vel)
+  - Diff drive plugin accepts shaped_cmd_vel
+  - ZED 2i stereo camera (RGB, depth, point cloud)
+  - ZED 2i IMU (400Hz) publishes /zed/zed_node/imu/data
   - Lidar publishes scan
   - teleop_twist_keyboard for manual control
 
@@ -27,15 +29,19 @@ from launch.actions import (
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
     worlds_pkg = get_package_share_directory('agv_sim_worlds')
+    drive_pkg = get_package_share_directory('agv_sim_drive')
     gazebo_ros_pkg = get_package_share_directory('gazebo_ros')
 
     ns = LaunchConfiguration('namespace')
     world_name = LaunchConfiguration('world')
+
+    drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
@@ -85,5 +91,15 @@ def generate_launch_description():
                 'yaw': LaunchConfiguration('yaw'),
                 'publish_odom_tf': 'true',
             }.items(),
+        ),
+
+        # ODrive-realistic drive shaping: cmd_vel → shaped_cmd_vel
+        Node(
+            package='agv_sim_drive',
+            executable='sim_drive_shaping_node',
+            name='sim_drive_shaping_node',
+            namespace=ns,
+            parameters=[drive_params],
+            output='screen',
         ),
     ])

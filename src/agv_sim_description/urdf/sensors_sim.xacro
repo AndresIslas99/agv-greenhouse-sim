@@ -2,8 +2,108 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <!-- ═══════════════════════════════════════════════════════ -->
-  <!--  IMU sensor link + Gazebo plugin                       -->
+  <!--  ZED 2i Stereo Camera — TF chain matching real ZED SDK -->
   <!-- ═══════════════════════════════════════════════════════ -->
+
+  <!-- ZED camera body link (175mm × 30mm × 33mm) -->
+  <link name="zed_camera_link">
+    <visual>
+      <geometry>
+        <box size="0.175 0.030 0.033"/>
+      </geometry>
+      <material name="zed_dark_grey">
+        <color rgba="0.2 0.2 0.2 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.175 0.030 0.033"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.16"/>
+      <inertia ixx="0.00005" ixy="0" ixz="0" iyy="0.00005" iyz="0" izz="0.00005"/>
+    </inertial>
+  </link>
+
+  <joint name="zed_camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="zed_camera_link"/>
+    <origin xyz="0.7 0.0 -0.055" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Optical center between lenses (identity transform from camera body) -->
+  <link name="zed_camera_center">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="zed_camera_center_joint" type="fixed">
+    <parent link="zed_camera_link"/>
+    <child link="zed_camera_center"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Left camera frame (+0.06m Y = half of 120mm baseline) -->
+  <link name="zed_left_camera_frame">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="zed_left_camera_joint" type="fixed">
+    <parent link="zed_camera_link"/>
+    <child link="zed_left_camera_frame"/>
+    <origin xyz="0.0 0.06 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Left camera optical frame (rotated for optical convention: Z forward, X right, Y down) -->
+  <link name="zed_left_camera_optical_frame">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="zed_left_camera_optical_joint" type="fixed">
+    <parent link="zed_left_camera_frame"/>
+    <child link="zed_left_camera_optical_frame"/>
+    <!-- Rotate -90° around Z then -90° around X for optical convention -->
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- Right camera frame (-0.06m Y = half of 120mm baseline) -->
+  <link name="zed_right_camera_frame">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="zed_right_camera_joint" type="fixed">
+    <parent link="zed_camera_link"/>
+    <child link="zed_right_camera_frame"/>
+    <origin xyz="0.0 -0.06 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Right camera optical frame -->
+  <link name="zed_right_camera_optical_frame">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="zed_right_camera_optical_joint" type="fixed">
+    <parent link="zed_right_camera_frame"/>
+    <child link="zed_right_camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- IMU link (co-located with camera body) -->
   <link name="imu_link">
     <visual>
       <geometry>
@@ -20,31 +120,111 @@
   </link>
 
   <joint name="imu_joint" type="fixed">
-    <parent link="base_link"/>
+    <parent link="zed_camera_link"/>
     <child link="imu_link"/>
-    <!-- At ZED position: 0.7m forward, 0.055m below base_link -->
-    <origin xyz="0.7 0.0 -0.055" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
-  <gazebo reference="imu_link">
-    <sensor name="imu_sensor" type="imu">
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  Left Camera Plugin (RGB + Depth + PointCloud)         -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <gazebo reference="zed_left_camera_frame">
+    <sensor type="depth" name="zed_left_depth">
       <always_on>true</always_on>
-      <update_rate>200</update_rate>
+      <update_rate>30</update_rate>
+      <camera>
+        <horizontal_fov>1.9199</horizontal_fov>
+        <image>
+          <width>1280</width>
+          <height>720</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.3</near>
+          <far>20.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+      <plugin name="zed_left_camera" filename="libgazebo_ros_camera.so">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>image_raw:=zed/zed_node/left/image_rect_color</remapping>
+          <remapping>camera_info:=zed/zed_node/left/camera_info</remapping>
+          <remapping>image_raw/depth:=zed/zed_node/depth/depth_registered</remapping>
+          <remapping>points:=zed/zed_node/point_cloud/cloud_registered</remapping>
+        </ros>
+        <camera_name>zed_left</camera_name>
+        <frame_name>zed_left_camera_optical_frame</frame_name>
+        <hack_baseline>0.12</hack_baseline>
+        <min_depth>0.3</min_depth>
+        <max_depth>20.0</max_depth>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  Right Camera Plugin (RGB only)                        -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <gazebo reference="zed_right_camera_frame">
+    <sensor type="camera" name="zed_right_camera">
+      <always_on>true</always_on>
+      <update_rate>30</update_rate>
+      <camera>
+        <horizontal_fov>1.9199</horizontal_fov>
+        <image>
+          <width>1280</width>
+          <height>720</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.3</near>
+          <far>20.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+      <plugin name="zed_right_camera" filename="libgazebo_ros_camera.so">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>image_raw:=zed/zed_node/right/image_rect_color</remapping>
+          <remapping>camera_info:=zed/zed_node/right/camera_info</remapping>
+        </ros>
+        <camera_name>zed_right</camera_name>
+        <frame_name>zed_right_camera_optical_frame</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  ZED 2i IMU — 400Hz, datasheet noise values            -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <gazebo reference="imu_link">
+    <sensor name="zed_imu" type="imu">
+      <always_on>true</always_on>
+      <update_rate>400</update_rate>
       <imu>
         <angular_velocity>
-          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></x>
-          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></y>
-          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></z>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.00279</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.00279</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.00279</stddev></noise></z>
         </angular_velocity>
         <linear_acceleration>
-          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></x>
-          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></y>
-          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></z>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.0314</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.0314</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.0314</stddev></noise></z>
         </linear_acceleration>
       </imu>
-      <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+      <plugin name="zed_imu_plugin" filename="libgazebo_ros_imu_sensor.so">
         <ros>
-          <remapping>~/out:=imu/data</remapping>
+          <namespace>/</namespace>
+          <remapping>~/out:=zed/zed_node/imu/data</remapping>
         </ros>
         <initial_orientation_as_reference>false</initial_orientation_as_reference>
         <frame_name>imu_link</frame_name>
@@ -53,7 +233,7 @@
   </gazebo>
 
   <!-- ═══════════════════════════════════════════════════════ -->
-  <!--  2D Lidar link + Gazebo plugin                         -->
+  <!--  2D Lidar (supplementary sensor, kept as-is)           -->
   <!-- ═══════════════════════════════════════════════════════ -->
   <link name="laser_frame">
     <visual>
@@ -78,7 +258,6 @@
   <joint name="laser_joint" type="fixed">
     <parent link="base_link"/>
     <child link="laser_frame"/>
-    <!-- Front-mounted lidar -->
     <origin xyz="0.5 0.0 0.0" rpy="0 0 0"/>
   </joint>
 

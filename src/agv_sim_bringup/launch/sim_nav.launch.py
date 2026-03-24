@@ -8,6 +8,7 @@ Launches:
   - Gazebo with greenhouse_simple.world
   - Robot spawned at starting position
   - Robot state publisher (sim URDF)
+  - ODrive-realistic drive shaping node (cmd_vel → shaped_cmd_vel)
   - Diff drive plugin: publish_odom_tf=false (EKF owns it)
   - slam_toolbox in localization mode
   - Dual EKF (local + global)
@@ -18,6 +19,7 @@ Launches:
     - behavior_server (spin, backup, wait)
     - costmap (global + local)
     - lifecycle manager
+  - Optional: apriltag_ros detection on ZED left camera
 
 Usage:
   ros2 launch agv_sim_bringup sim_nav.launch.py map:=/path/to/greenhouse_map.yaml
@@ -42,6 +44,7 @@ def generate_launch_description():
     worlds_pkg = get_package_share_directory('agv_sim_worlds')
     bringup_pkg = get_package_share_directory('agv_sim_bringup')
     nav_pkg = get_package_share_directory('agv_sim_nav')
+    drive_pkg = get_package_share_directory('agv_sim_drive')
     gazebo_ros_pkg = get_package_share_directory('gazebo_ros')
 
     ns = LaunchConfiguration('namespace')
@@ -52,6 +55,7 @@ def generate_launch_description():
     ekf_global_config = os.path.join(bringup_pkg, 'config', 'sim_ekf_global.yaml')
     slam_params = os.path.join(bringup_pkg, 'config', 'slam_toolbox_params.yaml')
     nav2_params = os.path.join(nav_pkg, 'config', 'nav2_params.yaml')
+    drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
@@ -102,6 +106,16 @@ def generate_launch_description():
                 'yaw': LaunchConfiguration('yaw'),
                 'publish_odom_tf': 'false',
             }.items(),
+        ),
+
+        # ODrive-realistic drive shaping: cmd_vel → shaped_cmd_vel
+        Node(
+            package='agv_sim_drive',
+            executable='sim_drive_shaping_node',
+            name='sim_drive_shaping_node',
+            namespace=ns,
+            parameters=[drive_params],
+            output='screen',
         ),
 
         # slam_toolbox in localization mode
@@ -158,6 +172,24 @@ def generate_launch_description():
                         ('odometry/filtered', 'odometry/global'),
                     ],
                     output='screen',
+                ),
+            ],
+        ),
+
+        # apriltag_ros detection on ZED left camera
+        TimerAction(
+            period=6.0,
+            actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        PathJoinSubstitution([
+                            FindPackageShare('agv_sim_apriltags'), 'launch',
+                            'apriltag_detection.launch.py',
+                        ]),
+                    ),
+                    launch_arguments={
+                        'namespace': ns,
+                    }.items(),
                 ),
             ],
         ),

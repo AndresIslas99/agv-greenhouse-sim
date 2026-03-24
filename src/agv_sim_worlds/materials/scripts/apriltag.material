@@ -1,0 +1,89 @@
+material AprilTag/Tag0
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture tag36h11_id0.png
+        filtering none
+      }
+    }
+  }
+}
+
+material AprilTag/Tag1
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture tag36h11_id1.png
+        filtering none
+      }
+    }
+  }
+}
+
+material AprilTag/Tag2
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture tag36h11_id2.png
+        filtering none
+      }
+    }
+  }
+}
+
+material AprilTag/Tag3
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture tag36h11_id3.png
+        filtering none
+      }
+    }
+  }
+}
+
+material AprilTag/Tag4
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture tag36h11_id4.png
+        filtering none
+      }
+    }
+  }
+}
+
+material AprilTag/Tag5
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture tag36h11_id5.png
+        filtering none
+      }
+    }
+  }
+}

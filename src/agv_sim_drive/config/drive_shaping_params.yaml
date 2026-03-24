@@ -1,0 +1,15 @@
+# ODrive-realistic wheel shaping parameters
+# Values from the real robot's odrive_params.yaml (measured 2026-03-18)
+sim_drive_shaping_node:
+  ros__parameters:
+    wheel_radius: 0.0625         # meters (125mm diameter wheels)
+    track_width: 0.735           # meters (center-to-center)
+    publish_rate_hz: 50
+    cmd_vel_timeout_ms: 500      # stop if no cmd_vel for this long
+    invert_left: false
+    invert_right: true
+    left_scale: 1.0
+    right_scale: 1.0
+    zero_vel_epsilon: 0.03       # turns/s — below this, send exact zero
+    min_effective_vel: 0.0       # turns/s — disabled (set >0 to enable stiction compensation)
+    max_wheel_accel: 1.0         # turns/s² — conservative rate limiter per wheel

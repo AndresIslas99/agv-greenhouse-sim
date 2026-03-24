@@ -1,8 +1,8 @@
-# Local EKF: wheel odometry + simulated IMU -> odom->base_link
+# Local EKF: wheel odometry + ZED 2i IMU -> odom->base_link
 #
 # Adapted from the real robot's ekf_local.yaml for simulation.
 # This filter owns the odom->base_link transform.
-# It fuses Gazebo diff_drive wheel odometry (50Hz) with simulated IMU (200Hz).
+# It fuses Gazebo diff_drive wheel odometry (50Hz) with simulated ZED 2i IMU (400Hz).
 
 ekf_local:
   ros__parameters:
@@ -29,10 +29,9 @@ ekf_local:
     odom0_relative: false
     odom0_queue_size: 10
 
-    # -- Simulated IMU (from Gazebo IMU plugin) --
-    # Topic: imu/data (namespaced by launch)
-    # Replaces /zed/zed_node/imu/data from the real robot
-    imu0: imu/data
+    # -- ZED 2i IMU (from Gazebo IMU plugin) --
+    # Topic: /zed/zed_node/imu/data (absolute path, matching real robot)
+    imu0: /zed/zed_node/imu/data
     imu0_config: [false, false, false,     # x, y, z
                   true,  true,  true,      # roll, pitch, yaw
                   false, false, false,     # vx, vy, vz

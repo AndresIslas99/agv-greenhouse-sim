@@ -24,9 +24,11 @@
           </box>
         </geometry>
         <material>
-          <ambient>0.1 0.8 0.8 1</ambient>
-          <diffuse>0.1 0.8 0.8 1</diffuse>
-          <specular>0.1 0.1 0.1 1</specular>
+          <script>
+            <uri>file://materials/scripts/apriltag.material</uri>
+            <uri>file://materials/textures</uri>
+            <name>AprilTag/Tag5</name>
+          </script>
         </material>
       </visual>
       <collision name="collision">

@@ -207,6 +207,131 @@
       </link>
     </model>
 
+    <!-- ═══════════════ Heating Pipe Rails ═══════════════ -->
+    <!-- 2 parallel steel pipes per aisle × 5 aisles = 10 rails -->
+    <!-- 51mm diameter, 20m long, 450mm apart center-to-center -->
+    <!-- Aisle centers at Y = -4.4, -2.2, 0.0, 2.2, 4.4 -->
+
+    <!-- Aisle 1-2 (Y = -4.4) — left rail -->
+    <model name="heating_rail_1_2_left">
+      <static>true</static>
+      <pose>16.0 -4.625 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 1-2 (Y = -4.4) — right rail -->
+    <model name="heating_rail_1_2_right">
+      <static>true</static>
+      <pose>16.0 -4.175 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 2-3 (Y = -2.2) — left rail -->
+    <model name="heating_rail_2_3_left">
+      <static>true</static>
+      <pose>16.0 -2.425 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 2-3 (Y = -2.2) — right rail -->
+    <model name="heating_rail_2_3_right">
+      <static>true</static>
+      <pose>16.0 -1.975 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 3-4 (Y = 0.0) — left rail -->
+    <model name="heating_rail_3_4_left">
+      <static>true</static>
+      <pose>16.0 -0.225 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 3-4 (Y = 0.0) — right rail -->
+    <model name="heating_rail_3_4_right">
+      <static>true</static>
+      <pose>16.0 0.225 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 4-5 (Y = 2.2) — left rail -->
+    <model name="heating_rail_4_5_left">
+      <static>true</static>
+      <pose>16.0 1.975 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 4-5 (Y = 2.2) — right rail -->
+    <model name="heating_rail_4_5_right">
+      <static>true</static>
+      <pose>16.0 2.425 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 5-6 (Y = 4.4) — left rail -->
+    <model name="heating_rail_5_6_left">
+      <static>true</static>
+      <pose>16.0 4.175 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Aisle 5-6 (Y = 4.4) — right rail -->
+    <model name="heating_rail_5_6_right">
+      <static>true</static>
+      <pose>16.0 4.625 0.0255 1.5708 0 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.6 0.6 0.65 1</ambient><diffuse>0.7 0.7 0.75 1</diffuse><specular>0.3 0.3 0.3 1</specular></material>
+        </visual>
+      </link>
+    </model>
+
     <!-- ═══════════════ AprilTag Markers ═══════════════ -->
     <!-- Tag 0: West corridor end (near entrance) -->
     <model name="apriltag_0">

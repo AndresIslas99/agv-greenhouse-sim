@@ -10,15 +10,21 @@
       ├── left_wheel     (continuous joint, driven by Gazebo diff_drive)
       ├── right_wheel    (continuous joint, driven by Gazebo diff_drive)
       ├── base_footprint (fixed, at ground level)
-      ├── imu_link       (fixed, at ZED position)
+      ├── zed_camera_link (fixed, at ZED 2i position)
+      │    ├── zed_camera_center
+      │    ├── zed_left_camera_frame → zed_left_camera_optical_frame
+      │    ├── zed_right_camera_frame → zed_right_camera_optical_frame
+      │    └── imu_link
       ├── laser_frame    (fixed, front-mounted)
       ├── front_caster   (fixed, for sim stability)
       └── rear_caster    (fixed, for sim stability)
 
   Gazebo plugins:
-    - libgazebo_ros_diff_drive.so
-    - libgazebo_ros_imu_sensor.so
-    - libgazebo_ros_ray_sensor.so
+    - libgazebo_ros_diff_drive.so (reads shaped_cmd_vel from drive shaping node)
+    - libgazebo_ros_camera.so (ZED 2i left: RGB + depth + point cloud)
+    - libgazebo_ros_camera.so (ZED 2i right: RGB)
+    - libgazebo_ros_imu_sensor.so (ZED 2i IMU at 400Hz)
+    - libgazebo_ros_ray_sensor.so (2D lidar, supplementary)
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="agv">
 
@@ -86,7 +92,7 @@
       <robot_base_frame>base_link</robot_base_frame>
 
       <!-- Topics -->
-      <command_topic>cmd_vel</command_topic>
+      <command_topic>shaped_cmd_vel</command_topic>
       <odometry_topic>wheel_odom</odometry_topic>
 
       <!-- Rate -->
