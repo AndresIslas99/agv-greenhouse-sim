@@ -12,7 +12,7 @@ SimDriveShapingNode::SimDriveShapingNode() : Node("sim_drive_shaping_node") {
   this->declare_parameter("publish_rate_hz", 50);
   this->declare_parameter("cmd_vel_timeout_ms", 500);
   this->declare_parameter("invert_left", false);
-  this->declare_parameter("invert_right", true);
+  this->declare_parameter("invert_right", false);
   this->declare_parameter("left_scale", 1.0);
   this->declare_parameter("right_scale", 1.0);
   this->declare_parameter("zero_vel_epsilon", 0.03);

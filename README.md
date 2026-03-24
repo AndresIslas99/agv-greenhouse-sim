@@ -1,11 +1,13 @@
 # AGV Greenhouse Simulation
 
-Gazebo Classic simulation for the AGV greenhouse robot. An **accuracy-focused simulation** that replicates the real hardware's ZED 2i stereo camera, ODrive motor shaping, real AprilTag textures, and greenhouse heating pipe rails — letting the software team develop and test Nav2, EKF, vision, and mission logic with high-fidelity sensor and actuator behavior.
+Gz Harmonic (Gazebo Sim 8) simulation for the AGV greenhouse robot. An **accuracy-focused simulation** that replicates the real hardware's ZED 2i stereo camera, ODrive motor shaping, real AprilTag textures (tag36h11 via PBR materials), and greenhouse heating pipe rails — letting the software team develop and test Nav2, EKF, vision, and mission logic with high-fidelity sensor and actuator behavior.
+
+**Spatial accuracy notes:** AprilTags are vertical (pitch-rotated) at Z=0.25m (camera height), facing the robot's approach direction. Heating rails run along crop rows (+X axis) via pitch rotation. Lidar is mounted above the chassis top.
 
 ## Prerequisites
 
 - **ROS 2 Humble Hawksbill**
-- **Gazebo Classic (gazebo11)** with `gazebo_ros` packages
+- **Gz Harmonic (Gazebo Sim 8)** with `ros_gz` packages
 - Required ROS 2 packages:
 
 ```bash
@@ -221,7 +223,7 @@ The world includes 6 crop rows, 5 aisles with heating pipe rails, walls, crates,
    (clear)
 ```
 
-**Heating pipe rails:** 2 parallel 51mm steel pipes per aisle, 450mm apart, 20m long, at ground level.
+**Heating pipe rails:** 2 parallel 51mm steel pipes per aisle, 450mm apart, 20m long, running along crop rows (+X axis) at ground level.
 
 T0-T5 = AprilTag positions. Robot spawns at (2.0, 0.0) in the start area.
 

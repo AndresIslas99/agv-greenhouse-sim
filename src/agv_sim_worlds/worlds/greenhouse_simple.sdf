@@ -229,7 +229,7 @@
     <!-- Aisle 1-2 (Y = -4.4) -->
     <model name="heating_rail_1_2_left">
       <static>true</static>
-      <pose>16.0 -4.625 0.0255 1.5708 0 0</pose>
+      <pose>16.0 -4.625 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -240,7 +240,7 @@
 
     <model name="heating_rail_1_2_right">
       <static>true</static>
-      <pose>16.0 -4.175 0.0255 1.5708 0 0</pose>
+      <pose>16.0 -4.175 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -252,7 +252,7 @@
     <!-- Aisle 2-3 (Y = -2.2) -->
     <model name="heating_rail_2_3_left">
       <static>true</static>
-      <pose>16.0 -2.425 0.0255 1.5708 0 0</pose>
+      <pose>16.0 -2.425 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -263,7 +263,7 @@
 
     <model name="heating_rail_2_3_right">
       <static>true</static>
-      <pose>16.0 -1.975 0.0255 1.5708 0 0</pose>
+      <pose>16.0 -1.975 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -275,7 +275,7 @@
     <!-- Aisle 3-4 (Y = 0.0) -->
     <model name="heating_rail_3_4_left">
       <static>true</static>
-      <pose>16.0 -0.225 0.0255 1.5708 0 0</pose>
+      <pose>16.0 -0.225 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -286,7 +286,7 @@
 
     <model name="heating_rail_3_4_right">
       <static>true</static>
-      <pose>16.0 0.225 0.0255 1.5708 0 0</pose>
+      <pose>16.0 0.225 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -298,7 +298,7 @@
     <!-- Aisle 4-5 (Y = 2.2) -->
     <model name="heating_rail_4_5_left">
       <static>true</static>
-      <pose>16.0 1.975 0.0255 1.5708 0 0</pose>
+      <pose>16.0 1.975 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -309,7 +309,7 @@
 
     <model name="heating_rail_4_5_right">
       <static>true</static>
-      <pose>16.0 2.425 0.0255 1.5708 0 0</pose>
+      <pose>16.0 2.425 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -321,7 +321,7 @@
     <!-- Aisle 5-6 (Y = 4.4) -->
     <model name="heating_rail_5_6_left">
       <static>true</static>
-      <pose>16.0 4.175 0.0255 1.5708 0 0</pose>
+      <pose>16.0 4.175 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -332,7 +332,7 @@
 
     <model name="heating_rail_5_6_right">
       <static>true</static>
-      <pose>16.0 4.625 0.0255 1.5708 0 0</pose>
+      <pose>16.0 4.625 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -342,95 +342,50 @@
     </model>
 
     <!-- ═══════════════ AprilTag Markers ═══════════════ -->
-    <!-- Tag 0: West corridor end (near entrance) -->
-    <model name="apriltag_0">
-      <static>true</static>
-      <pose>1.0 0.0 1.0 0 0 1.5708</pose>
-      <link name="tag_link">
-        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
-          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
-        </visual>
-        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
-          <pose>0 0 0.001 0 0 0</pose>
-          <material><ambient>0.8 0.1 0.1 1</ambient><diffuse>0.8 0.1 0.1 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
+    <!-- Tags are vertical (pitch rotation) at Z=0.25m (camera height) -->
+    <!-- Using real tag36h11 textured models with PBR materials -->
 
-    <!-- Tag 1: East corridor end -->
-    <model name="apriltag_1">
-      <static>true</static>
-      <pose>29.0 0.0 1.0 0 0 -1.5708</pose>
-      <link name="tag_link">
-        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
-          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
-        </visual>
-        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
-          <pose>0 0 0.001 0 0 0</pose>
-          <material><ambient>0.1 0.1 0.8 1</ambient><diffuse>0.1 0.1 0.8 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
+    <!-- Tag 0: West corridor end, facing +X -->
+    <include>
+      <uri>model://apriltag_0</uri>
+      <name>apriltag_0</name>
+      <pose>1.0 0.0 0.25 0 1.5708 0</pose>
+    </include>
 
-    <!-- Tag 2: Aisle 1-2 entrance (west side) -->
-    <model name="apriltag_2">
-      <static>true</static>
-      <pose>6.0 -4.4 1.0 0 0 1.5708</pose>
-      <link name="tag_link">
-        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
-          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
-        </visual>
-        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
-          <pose>0 0 0.001 0 0 0</pose>
-          <material><ambient>0.1 0.8 0.1 1</ambient><diffuse>0.1 0.8 0.1 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
+    <!-- Tag 1: East corridor end, facing -X -->
+    <include>
+      <uri>model://apriltag_1</uri>
+      <name>apriltag_1</name>
+      <pose>29.0 0.0 0.25 0 -1.5708 0</pose>
+    </include>
 
-    <!-- Tag 3: Aisle 3-4 entrance (west side) -->
-    <model name="apriltag_3">
-      <static>true</static>
-      <pose>6.0 0.0 1.0 0 0 1.5708</pose>
-      <link name="tag_link">
-        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
-          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
-        </visual>
-        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
-          <pose>0 0 0.001 0 0 0</pose>
-          <material><ambient>0.8 0.8 0.1 1</ambient><diffuse>0.8 0.8 0.1 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
+    <!-- Tag 2: Aisle 1-2 entrance, facing -X -->
+    <include>
+      <uri>model://apriltag_2</uri>
+      <name>apriltag_2</name>
+      <pose>6.0 -4.4 0.25 0 -1.5708 0</pose>
+    </include>
 
-    <!-- Tag 4: Aisle 5-6 entrance (west side) -->
-    <model name="apriltag_4">
-      <static>true</static>
-      <pose>6.0 4.4 1.0 0 0 1.5708</pose>
-      <link name="tag_link">
-        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
-          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
-        </visual>
-        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
-          <pose>0 0 0.001 0 0 0</pose>
-          <material><ambient>0.6 0.1 0.8 1</ambient><diffuse>0.6 0.1 0.8 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
+    <!-- Tag 3: Aisle 3-4 entrance, facing -X -->
+    <include>
+      <uri>model://apriltag_3</uri>
+      <name>apriltag_3</name>
+      <pose>6.0 0.0 0.25 0 -1.5708 0</pose>
+    </include>
 
-    <!-- Tag 5: Starting area -->
-    <model name="apriltag_5">
-      <static>true</static>
-      <pose>2.5 -5.0 1.0 0 0 0</pose>
-      <link name="tag_link">
-        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
-          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
-        </visual>
-        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
-          <pose>0 0 0.001 0 0 0</pose>
-          <material><ambient>0.1 0.8 0.8 1</ambient><diffuse>0.1 0.8 0.8 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
+    <!-- Tag 4: Aisle 5-6 entrance, facing -X -->
+    <include>
+      <uri>model://apriltag_4</uri>
+      <name>apriltag_4</name>
+      <pose>6.0 4.4 0.25 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 5: Starting area, facing +X -->
+    <include>
+      <uri>model://apriltag_5</uri>
+      <name>apriltag_5</name>
+      <pose>2.5 -5.0 0.25 0 1.5708 0</pose>
+    </include>
 
   </world>
 </sdf>
