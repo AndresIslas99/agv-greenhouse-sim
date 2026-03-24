@@ -5,10 +5,11 @@ Launches:
   - Gazebo with greenhouse_simple.world
   - Robot spawned at starting position
   - Robot state publisher (sim URDF)
+  - ODrive-realistic drive shaping node (cmd_vel → shaped_cmd_vel)
   - Diff drive plugin: publish_odom_tf=false (EKF owns odom->base_link)
   - slam_toolbox in localization mode (loads a saved map)
   - Dual EKF:
-    - ekf_local: wheel_odom + simulated IMU -> odom->base_link
+    - ekf_local: wheel_odom + ZED 2i IMU -> odom->base_link
     - ekf_global: local output + slam_toolbox pose -> map->odom
 
 Usage:
@@ -33,6 +34,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     worlds_pkg = get_package_share_directory('agv_sim_worlds')
     bringup_pkg = get_package_share_directory('agv_sim_bringup')
+    drive_pkg = get_package_share_directory('agv_sim_drive')
     gazebo_ros_pkg = get_package_share_directory('gazebo_ros')
 
     ns = LaunchConfiguration('namespace')
@@ -42,6 +44,7 @@ def generate_launch_description():
     ekf_local_config = os.path.join(bringup_pkg, 'config', 'sim_ekf_local.yaml')
     ekf_global_config = os.path.join(bringup_pkg, 'config', 'sim_ekf_global.yaml')
     slam_params = os.path.join(bringup_pkg, 'config', 'slam_toolbox_params.yaml')
+    drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
@@ -94,6 +97,16 @@ def generate_launch_description():
             }.items(),
         ),
 
+        # ODrive-realistic drive shaping: cmd_vel → shaped_cmd_vel
+        Node(
+            package='agv_sim_drive',
+            executable='sim_drive_shaping_node',
+            name='sim_drive_shaping_node',
+            namespace=ns,
+            parameters=[drive_params],
+            output='screen',
+        ),
+
         # slam_toolbox in localization mode
         TimerAction(
             period=3.0,
@@ -116,7 +129,7 @@ def generate_launch_description():
             ],
         ),
 
-        # Dual EKF — local: wheel_odom + IMU -> odom->base_link
+        # Dual EKF — local: wheel_odom + ZED 2i IMU -> odom->base_link
         TimerAction(
             period=5.0,
             actions=[

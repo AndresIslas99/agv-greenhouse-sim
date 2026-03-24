@@ -5,6 +5,7 @@ Launches:
   - Gazebo with greenhouse_simple.world
   - Robot spawned at starting position
   - Robot state publisher (sim URDF)
+  - ODrive-realistic drive shaping node (cmd_vel → shaped_cmd_vel)
   - slam_toolbox in online_async mapping mode
   - In this mode, slam_toolbox owns map->odom TF
   - Diff drive publishes odom->base_link TF directly
@@ -33,12 +34,14 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     worlds_pkg = get_package_share_directory('agv_sim_worlds')
     bringup_pkg = get_package_share_directory('agv_sim_bringup')
+    drive_pkg = get_package_share_directory('agv_sim_drive')
     gazebo_ros_pkg = get_package_share_directory('gazebo_ros')
 
     ns = LaunchConfiguration('namespace')
     world_name = LaunchConfiguration('world')
 
     slam_params = os.path.join(bringup_pkg, 'config', 'slam_toolbox_params.yaml')
+    drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
@@ -87,6 +90,16 @@ def generate_launch_description():
                 'yaw': LaunchConfiguration('yaw'),
                 'publish_odom_tf': 'true',
             }.items(),
+        ),
+
+        # ODrive-realistic drive shaping: cmd_vel → shaped_cmd_vel
+        Node(
+            package='agv_sim_drive',
+            executable='sim_drive_shaping_node',
+            name='sim_drive_shaping_node',
+            namespace=ns,
+            parameters=[drive_params],
+            output='screen',
         ),
 
         # slam_toolbox — online async mapping mode
