@@ -1,0 +1,302 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="greenhouse_simple">
+
+    <!-- ═══════════════ Physics ═══════════════ -->
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- ═══════════════ Lighting ═══════════════ -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- ═══════════════ Ground Plane ═══════════════ -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="ground_link">
+        <collision name="ground_collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>40 20</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="ground_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>40 20</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.35 0.28 0.18 1</ambient>
+            <diffuse>0.4 0.32 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════ Greenhouse Walls (~30m x 15m) ═══════════════ -->
+    <!-- North wall -->
+    <model name="wall_north">
+      <static>true</static>
+      <pose>15 7.5 1.5 0 0 0</pose>
+      <link name="wall_link">
+        <collision name="col"><geometry><box><size>30 0.2 3.0</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>30 0.2 3.0</size></box></geometry>
+          <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- South wall -->
+    <model name="wall_south">
+      <static>true</static>
+      <pose>15 -7.5 1.5 0 0 0</pose>
+      <link name="wall_link">
+        <collision name="col"><geometry><box><size>30 0.2 3.0</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>30 0.2 3.0</size></box></geometry>
+          <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- West wall (entrance side) -->
+    <model name="wall_west">
+      <static>true</static>
+      <pose>0 0 1.5 0 0 0</pose>
+      <link name="wall_link">
+        <collision name="col"><geometry><box><size>0.2 15 3.0</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>0.2 15 3.0</size></box></geometry>
+          <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- East wall -->
+    <model name="wall_east">
+      <static>true</static>
+      <pose>30 0 1.5 0 0 0</pose>
+      <link name="wall_link">
+        <collision name="col"><geometry><box><size>0.2 15 3.0</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>0.2 15 3.0</size></box></geometry>
+          <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════ Crop Rows (6 parallel rows) ═══════════════ -->
+    <!-- Rows run East-West (X-axis), spaced along Y with 1.2m aisles -->
+    <!-- Row width=1.0m, aisle=1.2m, so center-to-center = 2.2m -->
+    <!-- Starting from Y = -5.5 going north -->
+
+    <!-- Row 1 -->
+    <model name="crop_row_1">
+      <static>true</static>
+      <pose>16 -5.5 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material><ambient>0.1 0.5 0.1 1</ambient><diffuse>0.15 0.6 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Row 2 -->
+    <model name="crop_row_2">
+      <static>true</static>
+      <pose>16 -3.3 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material><ambient>0.1 0.45 0.1 1</ambient><diffuse>0.15 0.55 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Row 3 -->
+    <model name="crop_row_3">
+      <static>true</static>
+      <pose>16 -1.1 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material><ambient>0.1 0.5 0.1 1</ambient><diffuse>0.15 0.6 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Row 4 -->
+    <model name="crop_row_4">
+      <static>true</static>
+      <pose>16 1.1 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material><ambient>0.1 0.45 0.1 1</ambient><diffuse>0.15 0.55 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Row 5 -->
+    <model name="crop_row_5">
+      <static>true</static>
+      <pose>16 3.3 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material><ambient>0.1 0.5 0.1 1</ambient><diffuse>0.15 0.6 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Row 6 -->
+    <model name="crop_row_6">
+      <static>true</static>
+      <pose>16 5.5 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material><ambient>0.1 0.45 0.1 1</ambient><diffuse>0.15 0.55 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════ Main Corridor (perpendicular, ~2m wide) ═══════════════ -->
+    <!-- The corridor splits crop rows: rows run from X=7 to X=27, corridor at X=6 to X=7 is clear -->
+    <!-- Actually, we achieve the corridor by making rows shorter and leaving a gap -->
+    <!-- Rows are centered at X=16 with length 20, so they span X=6 to X=26 -->
+    <!-- The starting area is at X=1 to X=6 (clear space near west wall) -->
+
+    <!-- ═══════════════ Static Obstacles (crates) ═══════════════ -->
+    <model name="crate_1">
+      <static>true</static>
+      <pose>3.5 -2.0 0.15 0 0 0.3</pose>
+      <link name="crate_link">
+        <collision name="col"><geometry><box><size>0.5 0.4 0.3</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>0.5 0.4 0.3</size></box></geometry>
+          <material><ambient>0.5 0.35 0.15 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="crate_2">
+      <static>true</static>
+      <pose>4.0 3.5 0.15 0 0 -0.2</pose>
+      <link name="crate_link">
+        <collision name="col"><geometry><box><size>0.5 0.4 0.3</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>0.5 0.4 0.3</size></box></geometry>
+          <material><ambient>0.5 0.35 0.15 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="crate_3">
+      <static>true</static>
+      <pose>25.0 0.0 0.15 0 0 0.5</pose>
+      <link name="crate_link">
+        <collision name="col"><geometry><box><size>0.5 0.4 0.3</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>0.5 0.4 0.3</size></box></geometry>
+          <material><ambient>0.5 0.35 0.15 1</ambient><diffuse>0.6 0.4 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════ AprilTag Markers ═══════════════ -->
+    <!-- Tag 0: West corridor end (near entrance) -->
+    <model name="apriltag_0">
+      <static>true</static>
+      <pose>1.0 0.0 1.0 0 0 1.5708</pose>
+      <link name="tag_link">
+        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
+        </visual>
+        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
+          <pose>0 0 0.001 0 0 0</pose>
+          <material><ambient>0.8 0.1 0.1 1</ambient><diffuse>0.8 0.1 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tag 1: East corridor end -->
+    <model name="apriltag_1">
+      <static>true</static>
+      <pose>29.0 0.0 1.0 0 0 -1.5708</pose>
+      <link name="tag_link">
+        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
+        </visual>
+        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
+          <pose>0 0 0.001 0 0 0</pose>
+          <material><ambient>0.1 0.1 0.8 1</ambient><diffuse>0.1 0.1 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tag 2: Aisle 1-2 entrance (west side) -->
+    <model name="apriltag_2">
+      <static>true</static>
+      <pose>6.0 -4.4 1.0 0 0 1.5708</pose>
+      <link name="tag_link">
+        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
+        </visual>
+        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
+          <pose>0 0 0.001 0 0 0</pose>
+          <material><ambient>0.1 0.8 0.1 1</ambient><diffuse>0.1 0.8 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tag 3: Aisle 3-4 entrance (west side) -->
+    <model name="apriltag_3">
+      <static>true</static>
+      <pose>6.0 0.0 1.0 0 0 1.5708</pose>
+      <link name="tag_link">
+        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
+        </visual>
+        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
+          <pose>0 0 0.001 0 0 0</pose>
+          <material><ambient>0.8 0.8 0.1 1</ambient><diffuse>0.8 0.8 0.1 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tag 4: Aisle 5-6 entrance (west side) -->
+    <model name="apriltag_4">
+      <static>true</static>
+      <pose>6.0 4.4 1.0 0 0 1.5708</pose>
+      <link name="tag_link">
+        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
+        </visual>
+        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
+          <pose>0 0 0.001 0 0 0</pose>
+          <material><ambient>0.6 0.1 0.8 1</ambient><diffuse>0.6 0.1 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Tag 5: Starting area -->
+    <model name="apriltag_5">
+      <static>true</static>
+      <pose>2.5 -5.0 1.0 0 0 0</pose>
+      <link name="tag_link">
+        <visual name="border"><geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
+          <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse></material>
+        </visual>
+        <visual name="tag"><geometry><box><size>0.2 0.2 0.001</size></box></geometry>
+          <pose>0 0 0.001 0 0 0</pose>
+          <material><ambient>0.1 0.8 0.8 1</ambient><diffuse>0.1 0.8 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
