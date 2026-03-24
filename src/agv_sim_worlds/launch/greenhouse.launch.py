@@ -1,9 +1,9 @@
 """
-Launch Gazebo with the greenhouse world.
+Launch Gz Sim with the greenhouse world.
 
 Usage:
   ros2 launch agv_sim_worlds greenhouse.launch.py
-  ros2 launch agv_sim_worlds greenhouse.launch.py world:=nav_test.world
+  ros2 launch agv_sim_worlds greenhouse.launch.py world:=nav_test.sdf
 """
 
 import os
@@ -21,35 +21,33 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     worlds_pkg = get_package_share_directory('agv_sim_worlds')
-    gazebo_ros_pkg = get_package_share_directory('gazebo_ros')
+    ros_gz_sim_pkg = get_package_share_directory('ros_gz_sim')
 
     world_file = LaunchConfiguration('world')
 
     return LaunchDescription([
         DeclareLaunchArgument(
             'world',
-            default_value=os.path.join(worlds_pkg, 'worlds', 'greenhouse_simple.world'),
+            default_value=os.path.join(worlds_pkg, 'worlds', 'greenhouse_simple.sdf'),
             description='Path to world file',
         ),
 
-        # Add our models to the Gazebo model path
+        # Gz transport over loopback (avoids multicast issues)
+        SetEnvironmentVariable('GZ_IP', '127.0.0.1'),
+
+        # Add our models to the Gz resource path
         SetEnvironmentVariable(
-            'GAZEBO_MODEL_PATH',
+            'GZ_SIM_RESOURCE_PATH',
             os.path.join(worlds_pkg, 'models'),
         ),
 
-        # Start Gazebo server
+        # Start Gz Sim (server + GUI)
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_pkg, 'launch', 'gzserver.launch.py'),
+                os.path.join(ros_gz_sim_pkg, 'launch', 'gz_sim.launch.py'),
             ),
-            launch_arguments={'world': world_file}.items(),
-        ),
-
-        # Start Gazebo client
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_pkg, 'launch', 'gzclient.launch.py'),
-            ),
+            launch_arguments={
+                'gz_args': ['-r ', world_file],
+            }.items(),
         ),
     ])

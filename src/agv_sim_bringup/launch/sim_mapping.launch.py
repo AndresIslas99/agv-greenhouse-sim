@@ -2,13 +2,14 @@
 AGV Sim Mapping Mode — teleop + slam_toolbox for map creation.
 
 Launches:
-  - Gazebo with greenhouse_simple.world
+  - Gz Sim with greenhouse_simple.sdf
   - Robot spawned at starting position
   - Robot state publisher (sim URDF)
-  - ODrive-realistic drive shaping node (cmd_vel → shaped_cmd_vel)
+  - ros_gz_bridge (Gz Transport <-> ROS 2 topics)
+  - ODrive-realistic drive shaping node (cmd_vel -> shaped_cmd_vel)
   - slam_toolbox in online_async mapping mode
   - In this mode, slam_toolbox owns map->odom TF
-  - Diff drive publishes odom->base_link TF directly
+  - Diff drive TF bridged for odom->base_link
 
 Usage:
   ros2 launch agv_sim_bringup sim_mapping.launch.py
@@ -35,13 +36,14 @@ def generate_launch_description():
     worlds_pkg = get_package_share_directory('agv_sim_worlds')
     bringup_pkg = get_package_share_directory('agv_sim_bringup')
     drive_pkg = get_package_share_directory('agv_sim_drive')
-    gazebo_ros_pkg = get_package_share_directory('gazebo_ros')
+    ros_gz_sim_pkg = get_package_share_directory('ros_gz_sim')
 
     ns = LaunchConfiguration('namespace')
     world_name = LaunchConfiguration('world')
 
     slam_params = os.path.join(bringup_pkg, 'config', 'slam_toolbox_params.yaml')
     drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
+    bridge_config = os.path.join(bringup_pkg, 'config', 'gz_bridge.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
@@ -50,33 +52,32 @@ def generate_launch_description():
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('yaw', default_value='0.0'),
 
-        # Gazebo model path
+        # Gz transport over loopback (avoids multicast issues)
+        SetEnvironmentVariable('GZ_IP', '127.0.0.1'),
+
+        # Gz resource path
         SetEnvironmentVariable(
-            'GAZEBO_MODEL_PATH',
+            'GZ_SIM_RESOURCE_PATH',
             os.path.join(worlds_pkg, 'models'),
         ),
 
-        # Start Gazebo server
+        # Start Gz Sim
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_pkg, 'launch', 'gzserver.launch.py'),
+                os.path.join(ros_gz_sim_pkg, 'launch', 'gz_sim.launch.py'),
             ),
             launch_arguments={
-                'world': PathJoinSubstitution([
-                    FindPackageShare('agv_sim_worlds'), 'worlds',
-                    [world_name, '.world'],
-                ]),
+                'gz_args': [
+                    '-r ',
+                    PathJoinSubstitution([
+                        FindPackageShare('agv_sim_worlds'), 'worlds',
+                        [world_name, '.sdf'],
+                    ]),
+                ],
             }.items(),
         ),
 
-        # Start Gazebo client
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_pkg, 'launch', 'gzclient.launch.py'),
-            ),
-        ),
-
-        # Spawn robot — in mapping mode, diff_drive publishes odom TF
+        # Spawn robot
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
@@ -88,17 +89,35 @@ def generate_launch_description():
                 'x': LaunchConfiguration('x'),
                 'y': LaunchConfiguration('y'),
                 'yaw': LaunchConfiguration('yaw'),
-                'publish_odom_tf': 'true',
             }.items(),
         ),
 
-        # ODrive-realistic drive shaping: cmd_vel → shaped_cmd_vel
+        # ros_gz_bridge — sensor/odom/clock bridges
+        Node(
+            package='ros_gz_bridge',
+            executable='parameter_bridge',
+            name='gz_bridge',
+            parameters=[{'config_file': bridge_config}],
+            output='screen',
+        ),
+
+        # ros_gz_bridge — odom TF (mapping mode: diff_drive publishes odom->base_link)
+        Node(
+            package='ros_gz_bridge',
+            executable='parameter_bridge',
+            name='gz_bridge_tf',
+            arguments=['/agv/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V'],
+            remappings=[('/agv/tf', '/tf')],
+            output='screen',
+        ),
+
+        # ODrive-realistic drive shaping: cmd_vel -> shaped_cmd_vel
         Node(
             package='agv_sim_drive',
             executable='sim_drive_shaping_node',
             name='sim_drive_shaping_node',
             namespace=ns,
-            parameters=[drive_params],
+            parameters=[drive_params, {'use_sim_time': True}],
             output='screen',
         ),
 
@@ -112,7 +131,7 @@ def generate_launch_description():
                     executable='async_slam_toolbox_node',
                     name='slam_toolbox',
                     namespace=ns,
-                    parameters=[slam_params],
+                    parameters=[slam_params, {'use_sim_time': True}],
                     remappings=[
                         ('scan', 'scan'),
                     ],

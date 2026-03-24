@@ -2,17 +2,17 @@
 AGV Sim Teleop Mode — drive robot in simulation with keyboard.
 
 Launches:
-  - Gazebo with greenhouse_simple.world
+  - Gz Sim with greenhouse_simple.sdf
   - Robot spawned at starting position
   - Robot state publisher (sim URDF)
-  - ODrive-realistic drive shaping node (cmd_vel → shaped_cmd_vel)
-  - Diff drive plugin accepts shaped_cmd_vel
+  - ros_gz_bridge (Gz Transport <-> ROS 2 topics)
+  - ODrive-realistic drive shaping node (cmd_vel -> shaped_cmd_vel)
+  - Diff drive plugin accepts shaped_cmd_vel (via bridge)
   - ZED 2i stereo camera (RGB, depth, point cloud)
-  - ZED 2i IMU (400Hz) publishes /zed/zed_node/imu/data
-  - Lidar publishes scan
-  - teleop_twist_keyboard for manual control
+  - ZED 2i IMU (400Hz)
+  - Lidar
 
-In teleop mode, the diff_drive plugin publishes odom->base_link TF directly.
+In teleop mode, the diff_drive TF is bridged to /tf (odom->base_link).
 
 Usage:
   ros2 launch agv_sim_bringup sim_teleop.launch.py
@@ -35,49 +35,50 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     worlds_pkg = get_package_share_directory('agv_sim_worlds')
+    bringup_pkg = get_package_share_directory('agv_sim_bringup')
     drive_pkg = get_package_share_directory('agv_sim_drive')
-    gazebo_ros_pkg = get_package_share_directory('gazebo_ros')
+    ros_gz_sim_pkg = get_package_share_directory('ros_gz_sim')
 
     ns = LaunchConfiguration('namespace')
     world_name = LaunchConfiguration('world')
 
     drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
+    bridge_config = os.path.join(bringup_pkg, 'config', 'gz_bridge.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
         DeclareLaunchArgument('world', default_value='greenhouse_simple',
-                              description='World name without .world extension'),
+                              description='World name without .sdf extension'),
         DeclareLaunchArgument('x', default_value='2.0'),
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('yaw', default_value='0.0'),
 
-        # Gazebo model path
+        # Gz transport over loopback (avoids multicast issues)
+        SetEnvironmentVariable('GZ_IP', '127.0.0.1'),
+
+        # Gz resource path
         SetEnvironmentVariable(
-            'GAZEBO_MODEL_PATH',
+            'GZ_SIM_RESOURCE_PATH',
             os.path.join(worlds_pkg, 'models'),
         ),
 
-        # Start Gazebo server
+        # Start Gz Sim
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_pkg, 'launch', 'gzserver.launch.py'),
+                os.path.join(ros_gz_sim_pkg, 'launch', 'gz_sim.launch.py'),
             ),
             launch_arguments={
-                'world': PathJoinSubstitution([
-                    FindPackageShare('agv_sim_worlds'), 'worlds',
-                    [world_name, '.world'],
-                ]),
+                'gz_args': [
+                    '-r ',
+                    PathJoinSubstitution([
+                        FindPackageShare('agv_sim_worlds'), 'worlds',
+                        [world_name, '.sdf'],
+                    ]),
+                ],
             }.items(),
         ),
 
-        # Start Gazebo client
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_pkg, 'launch', 'gzclient.launch.py'),
-            ),
-        ),
-
-        # Spawn robot — in teleop mode, diff_drive publishes odom TF
+        # Spawn robot
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
@@ -89,17 +90,35 @@ def generate_launch_description():
                 'x': LaunchConfiguration('x'),
                 'y': LaunchConfiguration('y'),
                 'yaw': LaunchConfiguration('yaw'),
-                'publish_odom_tf': 'true',
             }.items(),
         ),
 
-        # ODrive-realistic drive shaping: cmd_vel → shaped_cmd_vel
+        # ros_gz_bridge — sensor/odom/clock bridges
+        Node(
+            package='ros_gz_bridge',
+            executable='parameter_bridge',
+            name='gz_bridge',
+            parameters=[{'config_file': bridge_config}],
+            output='screen',
+        ),
+
+        # ros_gz_bridge — odom TF (teleop mode: diff_drive publishes odom->base_link)
+        Node(
+            package='ros_gz_bridge',
+            executable='parameter_bridge',
+            name='gz_bridge_tf',
+            arguments=['/agv/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V'],
+            remappings=[('/agv/tf', '/tf')],
+            output='screen',
+        ),
+
+        # ODrive-realistic drive shaping: cmd_vel -> shaped_cmd_vel
         Node(
             package='agv_sim_drive',
             executable='sim_drive_shaping_node',
             name='sim_drive_shaping_node',
             namespace=ns,
-            parameters=[drive_params],
+            parameters=[drive_params, {'use_sim_time': True}],
             output='screen',
         ),
     ])

@@ -98,21 +98,15 @@
     <origin xyz="-0.25 0 -0.175" rpy="0 0 0"/>
   </joint>
 
-  <!-- Gazebo friction for casters (low friction to simulate free-rolling) -->
+  <!-- Gz friction for casters (low friction to simulate free-rolling) -->
   <gazebo reference="front_caster">
     <mu1>0.001</mu1>
     <mu2>0.001</mu2>
-    <material>Gazebo/DarkGrey</material>
   </gazebo>
 
   <gazebo reference="rear_caster">
     <mu1>0.001</mu1>
     <mu2>0.001</mu2>
-    <material>Gazebo/DarkGrey</material>
-  </gazebo>
-
-  <gazebo reference="base_link">
-    <material>Gazebo/Grey</material>
   </gazebo>
 
 </robot>

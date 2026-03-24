@@ -5,11 +5,11 @@ This is the key deliverable: robot can launch in sim, localize,
 and execute Nav2 A->B routes.
 
 Launches:
-  - Gazebo with greenhouse_simple.world
+  - Gz Sim with greenhouse_simple.sdf
   - Robot spawned at starting position
   - Robot state publisher (sim URDF)
-  - ODrive-realistic drive shaping node (cmd_vel → shaped_cmd_vel)
-  - Diff drive plugin: publish_odom_tf=false (EKF owns it)
+  - ros_gz_bridge (Gz Transport <-> ROS 2 topics, NO odom TF)
+  - ODrive-realistic drive shaping node (cmd_vel -> shaped_cmd_vel)
   - slam_toolbox in localization mode
   - Dual EKF (local + global)
   - Full Nav2 stack:
@@ -45,7 +45,7 @@ def generate_launch_description():
     bringup_pkg = get_package_share_directory('agv_sim_bringup')
     nav_pkg = get_package_share_directory('agv_sim_nav')
     drive_pkg = get_package_share_directory('agv_sim_drive')
-    gazebo_ros_pkg = get_package_share_directory('gazebo_ros')
+    ros_gz_sim_pkg = get_package_share_directory('ros_gz_sim')
 
     ns = LaunchConfiguration('namespace')
     world_name = LaunchConfiguration('world')
@@ -56,6 +56,7 @@ def generate_launch_description():
     slam_params = os.path.join(bringup_pkg, 'config', 'slam_toolbox_params.yaml')
     nav2_params = os.path.join(nav_pkg, 'config', 'nav2_params.yaml')
     drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
+    bridge_config = os.path.join(bringup_pkg, 'config', 'gz_bridge.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
@@ -66,30 +67,29 @@ def generate_launch_description():
         DeclareLaunchArgument('map', default_value='',
                               description='Path to map YAML for localization (without extension)'),
 
-        # Gazebo model path
+        # Gz transport over loopback (avoids multicast issues)
+        SetEnvironmentVariable('GZ_IP', '127.0.0.1'),
+
+        # Gz resource path
         SetEnvironmentVariable(
-            'GAZEBO_MODEL_PATH',
+            'GZ_SIM_RESOURCE_PATH',
             os.path.join(worlds_pkg, 'models'),
         ),
 
-        # Start Gazebo server
+        # Start Gz Sim
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_pkg, 'launch', 'gzserver.launch.py'),
+                os.path.join(ros_gz_sim_pkg, 'launch', 'gz_sim.launch.py'),
             ),
             launch_arguments={
-                'world': PathJoinSubstitution([
-                    FindPackageShare('agv_sim_worlds'), 'worlds',
-                    [world_name, '.world'],
-                ]),
+                'gz_args': [
+                    '-r ',
+                    PathJoinSubstitution([
+                        FindPackageShare('agv_sim_worlds'), 'worlds',
+                        [world_name, '.sdf'],
+                    ]),
+                ],
             }.items(),
-        ),
-
-        # Start Gazebo client
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_pkg, 'launch', 'gzclient.launch.py'),
-            ),
         ),
 
         # Spawn robot — EKF owns odom TF
@@ -104,17 +104,25 @@ def generate_launch_description():
                 'x': LaunchConfiguration('x'),
                 'y': LaunchConfiguration('y'),
                 'yaw': LaunchConfiguration('yaw'),
-                'publish_odom_tf': 'false',
             }.items(),
         ),
 
-        # ODrive-realistic drive shaping: cmd_vel → shaped_cmd_vel
+        # ros_gz_bridge — sensor/odom/clock bridges (NO odom TF bridge in EKF mode)
+        Node(
+            package='ros_gz_bridge',
+            executable='parameter_bridge',
+            name='gz_bridge',
+            parameters=[{'config_file': bridge_config}],
+            output='screen',
+        ),
+
+        # ODrive-realistic drive shaping: cmd_vel -> shaped_cmd_vel
         Node(
             package='agv_sim_drive',
             executable='sim_drive_shaping_node',
             name='sim_drive_shaping_node',
             namespace=ns,
-            parameters=[drive_params],
+            parameters=[drive_params, {'use_sim_time': True}],
             output='screen',
         ),
 
@@ -131,6 +139,7 @@ def generate_launch_description():
                         slam_params,
                         {'mode': 'localization'},
                         {'map_file_name': map_file},
+                        {'use_sim_time': True},
                     ],
                     remappings=[
                         ('scan', 'scan'),
@@ -149,7 +158,7 @@ def generate_launch_description():
                     executable='ekf_node',
                     name='ekf_local',
                     namespace=ns,
-                    parameters=[ekf_local_config],
+                    parameters=[ekf_local_config, {'use_sim_time': True}],
                     remappings=[
                         ('odometry/filtered', 'odometry/local'),
                     ],
@@ -167,7 +176,7 @@ def generate_launch_description():
                     executable='ekf_node',
                     name='ekf_global',
                     namespace=ns,
-                    parameters=[ekf_global_config],
+                    parameters=[ekf_global_config, {'use_sim_time': True}],
                     remappings=[
                         ('odometry/filtered', 'odometry/global'),
                     ],
@@ -204,7 +213,7 @@ def generate_launch_description():
                     executable='planner_server',
                     name='planner_server',
                     namespace=ns,
-                    parameters=[nav2_params],
+                    parameters=[nav2_params, {'use_sim_time': True}],
                     output='screen',
                 ),
 
@@ -214,7 +223,7 @@ def generate_launch_description():
                     executable='controller_server',
                     name='controller_server',
                     namespace=ns,
-                    parameters=[nav2_params],
+                    parameters=[nav2_params, {'use_sim_time': True}],
                     output='screen',
                 ),
 
@@ -224,7 +233,7 @@ def generate_launch_description():
                     executable='behavior_server',
                     name='behavior_server',
                     namespace=ns,
-                    parameters=[nav2_params],
+                    parameters=[nav2_params, {'use_sim_time': True}],
                     output='screen',
                 ),
 
@@ -234,7 +243,7 @@ def generate_launch_description():
                     executable='bt_navigator',
                     name='bt_navigator',
                     namespace=ns,
-                    parameters=[nav2_params],
+                    parameters=[nav2_params, {'use_sim_time': True}],
                     output='screen',
                 ),
 
@@ -246,6 +255,7 @@ def generate_launch_description():
                     namespace=ns,
                     parameters=[{
                         'autostart': True,
+                        'use_sim_time': True,
                         'node_names': [
                             'planner_server',
                             'controller_server',

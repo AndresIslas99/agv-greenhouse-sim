@@ -3,16 +3,15 @@
 <package format="3">
   <name>agv_sim_worlds</name>
   <version>1.0.0</version>
-  <description>Gazebo world files and models for AGV greenhouse simulation</description>
+  <description>Gz Sim world files and models for AGV greenhouse simulation</description>
   <maintainer email="andresislas2107@gmail.com">Andres Islas</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <exec_depend>gazebo_ros</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
-    <gazebo_ros gazebo_model_path="${prefix}/models"/>
   </export>
 </package>
