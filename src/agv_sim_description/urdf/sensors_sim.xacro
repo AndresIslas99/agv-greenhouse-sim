@@ -9,7 +9,7 @@
   <link name="zed_camera_link">
     <visual>
       <geometry>
-        <box size="0.175 0.030 0.033"/>
+        <box size="0.030 0.175 0.033"/>
       </geometry>
       <material name="zed_dark_grey">
         <color rgba="0.2 0.2 0.2 1.0"/>
@@ -17,13 +17,33 @@
     </visual>
     <collision>
       <geometry>
-        <box size="0.175 0.030 0.033"/>
+        <box size="0.030 0.175 0.033"/>
       </geometry>
     </collision>
     <inertial>
       <mass value="0.16"/>
       <inertia ixx="0.00005" ixy="0" ixz="0" iyy="0.00005" iyz="0" izz="0.00005"/>
     </inertial>
+    <!-- Left lens indicator -->
+    <visual name="left_lens">
+      <origin xyz="0.016 0.06 0.0" rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.008" length="0.003"/>
+      </geometry>
+      <material name="zed_lens">
+        <color rgba="0.1 0.1 0.15 1.0"/>
+      </material>
+    </visual>
+    <!-- Right lens indicator -->
+    <visual name="right_lens">
+      <origin xyz="0.016 -0.06 0.0" rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.008" length="0.003"/>
+      </geometry>
+      <material name="zed_lens">
+        <color rgba="0.1 0.1 0.15 1.0"/>
+      </material>
+    </visual>
   </link>
 
   <joint name="zed_camera_joint" type="fixed">
