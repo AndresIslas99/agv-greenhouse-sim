@@ -1,22 +1,40 @@
 """
-AGV Sim Teleop Mode — drive robot in simulation with keyboard.
+AGV Sim External Brain Mode — PC provides world/body/sensors, Jetson runs the brain.
 
-Launches:
-  - Gz Sim with greenhouse_simple.sdf
-  - Robot spawned at starting position
-  - Robot state publisher (sim URDF)
-  - ros_gz_bridge (Gz Transport <-> ROS 2 topics)
-  - ODrive-realistic drive shaping node (cmd_vel -> shaped_cmd_vel)
-  - Diff drive plugin accepts shaped_cmd_vel (via bridge)
-  - ZED 2i stereo camera (RGB, depth, point cloud)
-  - ZED 2i IMU (400Hz)
-  - Lidar
+The PC acts as a virtual robot body:
+  - Gz Sim with greenhouse world (physics + sensors)
+  - ros_gz_bridge exposes sensor topics to the ROS 2 network
+  - drive_shaping_node shapes cmd_vel for the Gz DiffDrive plugin
+  - robot_state_publisher publishes URDF TF tree
 
-In teleop mode, the diff_drive TF is bridged to /tf (odom->base_link).
+The Jetson (or any external machine on the same ROS 2 network) runs:
+  - EKF sensor fusion (odom->base_link, map->odom)
+  - SLAM (slam_toolbox or cuVSLAM)
+  - Nav2 autonomous navigation
+  - AprilTag detection
+  - Mission logic / UI
+
+Topics published by this launch (PC -> network):
+  Lightweight (always):
+    /clock                              ~16 KB/s
+    /agv/wheel_odom                     ~15 KB/s
+    /zed/zed_node/imu/data              ~60 KB/s
+    /agv/scan                           ~60 KB/s
+    /agv/joint_states                   ~10 KB/s
+    /tf_static                          negligible
+  Heavy (lazy — only when subscribed):
+    /zed/zed_node/left/image_rect_color ~81 MB/s (NOT WiFi safe)
+    /zed/zed_node/depth/depth_registered ~108 MB/s (NOT WiFi safe)
+    /zed/zed_node/point_cloud/...       ~330 MB/s (NOT WiFi safe)
+
+Topics consumed from network (Jetson -> PC):
+    /agv/cmd_vel    (geometry_msgs/Twist, from Nav2 or teleop)
+    /agv/e_stop     (std_msgs/Bool)
 
 Usage:
-  ros2 launch agv_sim_bringup sim_teleop.launch.py
-  ros2 launch agv_sim_bringup sim_teleop.launch.py world:=nav_test
+  PC:     ros2 launch agv_sim_bringup sim_external.launch.py
+  Jetson: ros2 topic list  # should see /agv/wheel_odom, /zed/zed_node/imu/data, etc.
+  Jetson: ros2 topic pub /agv/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}}" -r 10
 """
 
 import os
@@ -85,7 +103,7 @@ def generate_launch_description():
             }.items(),
         ),
 
-        # Spawn robot
+        # Spawn robot (includes robot_state_publisher for URDF TF + model spawn)
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
@@ -100,7 +118,8 @@ def generate_launch_description():
             }.items(),
         ),
 
-        # ros_gz_bridge — sensor/odom/clock bridges
+        # ros_gz_bridge — all sensor/odom/clock bridges
+        # Bridges are lazy: heavy topics (cameras) only stream when subscribed
         Node(
             package='ros_gz_bridge',
             executable='parameter_bridge',
@@ -109,23 +128,28 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # ros_gz_bridge — odom TF (teleop mode: diff_drive publishes odom->base_link)
-        Node(
-            package='ros_gz_bridge',
-            executable='parameter_bridge',
-            name='gz_bridge_tf',
-            arguments=['/agv/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V'],
-            remappings=[('/agv/tf', '/tf')],
-            output='screen',
-        ),
+        # NO odom TF bridge — the external brain (Jetson) owns odom->base_link via EKF
 
-        # ODrive-realistic drive shaping: cmd_vel -> shaped_cmd_vel
+        # Drive shaping: cmd_vel (from Jetson Nav2/teleop) -> shaped_cmd_vel (to Gz DiffDrive)
+        # Must run on PC for low-latency Gz physics interaction (50Hz loop)
         Node(
             package='agv_sim_drive',
             executable='sim_drive_shaping_node',
             name='sim_drive_shaping_node',
             namespace=ns,
             parameters=[drive_params, {'use_sim_time': True}],
+            output='screen',
+        ),
+
+        # Simulated global odometry — replaces cuVSLAM for HIL
+        # Relays wheel_odom with frame_id='map' on /visual_slam/tracking/odometry
+        # so the Jetson's global EKF gets the same topic contract as real hardware
+        Node(
+            package='agv_sim_bringup',
+            executable='sim_global_odom.py',
+            name='sim_global_odom',
+            namespace=ns,
+            parameters=[{'use_sim_time': True}],
             output='screen',
         ),
     ])
