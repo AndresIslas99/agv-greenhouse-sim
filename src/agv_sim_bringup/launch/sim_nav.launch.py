@@ -50,6 +50,7 @@ def generate_launch_description():
     ns = LaunchConfiguration('namespace')
     world_name = LaunchConfiguration('world')
     map_file = LaunchConfiguration('map')
+    map_yaml = LaunchConfiguration('map_yaml')
 
     ekf_local_config = os.path.join(bringup_pkg, 'config', 'sim_ekf_local.yaml')
     ekf_global_config = os.path.join(bringup_pkg, 'config', 'sim_ekf_global.yaml')
@@ -65,7 +66,17 @@ def generate_launch_description():
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('yaw', default_value='0.0'),
         DeclareLaunchArgument('map', default_value='',
-                              description='Path to map YAML for localization (without extension)'),
+                              description='Path to slam_toolbox serialized map (without extension)'),
+        DeclareLaunchArgument('map_yaml',
+                              default_value=os.path.join(bringup_pkg, 'maps', 'greenhouse_simple.yaml'),
+                              description='Path to .yaml map file for Nav2 map_server'),
+
+        # Force NVIDIA GPU for Gz rendering (PRIME offload on hybrid laptops)
+        SetEnvironmentVariable('__NV_PRIME_RENDER_OFFLOAD', '1'),
+        SetEnvironmentVariable('__GLX_VENDOR_LIBRARY_NAME', 'nvidia'),
+        SetEnvironmentVariable('__VK_LAYER_NV_optimus', 'NVIDIA_only'),
+        SetEnvironmentVariable('__EGL_VENDOR_LIBRARY_FILENAMES',
+                               '/usr/share/glvnd/egl_vendor.d/10_nvidia.json'),
 
         # Gz transport over loopback (avoids multicast issues)
         SetEnvironmentVariable('GZ_IP', '127.0.0.1'),
@@ -140,6 +151,8 @@ def generate_launch_description():
                         {'mode': 'localization'},
                         {'map_file_name': map_file},
                         {'use_sim_time': True},
+                        # EKF global owns map->odom TF; slam_toolbox must NOT compete
+                        {'publish_tf': False},
                     ],
                     remappings=[
                         ('scan', 'scan'),
@@ -203,6 +216,24 @@ def generate_launch_description():
             ],
         ),
 
+        # Map server — serves the static map for Nav2 global costmap
+        TimerAction(
+            period=7.0,
+            actions=[
+                Node(
+                    package='nav2_map_server',
+                    executable='map_server',
+                    name='map_server',
+                    namespace=ns,
+                    parameters=[{
+                        'yaml_filename': map_yaml,
+                        'use_sim_time': True,
+                    }],
+                    output='screen',
+                ),
+            ],
+        ),
+
         # Nav2 stack
         TimerAction(
             period=8.0,
@@ -257,6 +288,7 @@ def generate_launch_description():
                         'autostart': True,
                         'use_sim_time': True,
                         'node_names': [
+                            'map_server',
                             'planner_server',
                             'controller_server',
                             'behavior_server',
