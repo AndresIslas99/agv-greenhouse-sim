@@ -56,6 +56,13 @@ def generate_launch_description():
         DeclareLaunchArgument('map', default_value='',
                               description='Path to map YAML for localization (without extension)'),
 
+        # Force NVIDIA GPU for Gz rendering (PRIME offload on hybrid laptops)
+        SetEnvironmentVariable('__NV_PRIME_RENDER_OFFLOAD', '1'),
+        SetEnvironmentVariable('__GLX_VENDOR_LIBRARY_NAME', 'nvidia'),
+        SetEnvironmentVariable('__VK_LAYER_NV_optimus', 'NVIDIA_only'),
+        SetEnvironmentVariable('__EGL_VENDOR_LIBRARY_FILENAMES',
+                               '/usr/share/glvnd/egl_vendor.d/10_nvidia.json'),
+
         # Gz transport over loopback (avoids multicast issues)
         SetEnvironmentVariable('GZ_IP', '127.0.0.1'),
 
@@ -129,6 +136,8 @@ def generate_launch_description():
                         {'mode': 'localization'},
                         {'map_file_name': map_file},
                         {'use_sim_time': True},
+                        # EKF global owns map->odom TF; slam_toolbox must NOT compete
+                        {'publish_tf': False},
                     ],
                     remappings=[
                         ('scan', 'scan'),
