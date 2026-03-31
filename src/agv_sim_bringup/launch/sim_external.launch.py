@@ -165,4 +165,28 @@ def generate_launch_description():
             parameters=[{'use_sim_time': True}],
             output='screen',
         ),
+
+        # ZED 2i depth -> LaserScan (replaces fake lidar)
+        # Real robot has no lidar — scan comes from depth camera via this converter.
+        # Same approach as stereolabs/zed-ros2-examples/zed_depth_to_laserscan
+        Node(
+            package='depthimage_to_laserscan',
+            executable='depthimage_to_laserscan_node',
+            name='depthimage_to_laserscan',
+            namespace=ns,
+            parameters=[{
+                'scan_time': 0.033,
+                'range_min': 0.3,
+                'range_max': 10.0,
+                'scan_height': 60,
+                'output_frame': 'zed_left_camera_optical_frame',
+                'use_sim_time': True,
+            }],
+            remappings=[
+                ('depth', '/zed/zed_node/depth/depth_registered'),
+                ('depth_camera_info', '/zed/zed_node/left/camera_info'),
+                ('scan', 'scan'),
+            ],
+            output='screen',
+        ),
     ])
