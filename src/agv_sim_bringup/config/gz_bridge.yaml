@@ -29,25 +29,19 @@
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
 
-# Left camera RGB (Gz -> ROS)
-- ros_topic_name: "/zed/zed_node/left/image_rect_color"
-  gz_topic_name: "/zed_left/image"
+# Left depth camera — bridge BASE topic to trigger HasConnections() on sensor
+# The depth_camera sensor publishes RGB+depth on the base topic
+- ros_topic_name: "/zed/zed_node/depth/depth_registered"
+  gz_topic_name: "/zed_left"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
-# Left camera info (Gz -> ROS)
+# Camera info — sensor publishes on /camera_info (not namespaced to sensor topic)
 - ros_topic_name: "/zed/zed_node/left/camera_info"
-  gz_topic_name: "/zed_left/camera_info"
+  gz_topic_name: "/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
-  direction: GZ_TO_ROS
-
-# Depth image (Gz -> ROS)
-- ros_topic_name: "/zed/zed_node/depth/depth_registered"
-  gz_topic_name: "/zed_left/depth_image"
-  ros_type_name: "sensor_msgs/msg/Image"
-  gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
 # Point cloud (Gz -> ROS)
@@ -57,16 +51,16 @@
   gz_type_name: "gz.msgs.PointCloudPacked"
   direction: GZ_TO_ROS
 
-# Right camera RGB (Gz -> ROS)
+# Right camera — bridge BASE topic to trigger HasConnections()
 - ros_topic_name: "/zed/zed_node/right/image_rect_color"
-  gz_topic_name: "/zed_right/image"
+  gz_topic_name: "/zed_right"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
-# Right camera info (Gz -> ROS)
+# Right camera info — same /camera_info topic (shared by both cameras)
 - ros_topic_name: "/zed/zed_node/right/camera_info"
-  gz_topic_name: "/zed_right/camera_info"
+  gz_topic_name: "/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
