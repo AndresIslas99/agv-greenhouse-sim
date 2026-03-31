@@ -130,14 +130,27 @@ def generate_launch_description():
 
         # NO odom TF bridge — the external brain (Jetson) owns odom->base_link via EKF
 
-        # Drive shaping: cmd_vel (from Jetson Nav2/teleop) -> shaped_cmd_vel (to Gz DiffDrive)
-        # Must run on PC for low-latency Gz physics interaction (50Hz loop)
+        # Motor arming gate — emulates ODrive arm/disarm for the real GUI
+        # Subscribes: motor_enable (Bool), cmd_vel (Twist)
+        # Publishes: motor_state (String/JSON), cmd_vel_armed (Twist)
+        Node(
+            package='agv_sim_bringup',
+            executable='sim_motor_gate.py',
+            name='sim_motor_gate',
+            namespace=ns,
+            parameters=[{'use_sim_time': True}],
+            output='screen',
+        ),
+
+        # Drive shaping: cmd_vel_armed (from motor gate) -> shaped_cmd_vel (to Gz DiffDrive)
+        # Remapped from cmd_vel to cmd_vel_armed so motor gate controls access
         Node(
             package='agv_sim_drive',
             executable='sim_drive_shaping_node',
             name='sim_drive_shaping_node',
             namespace=ns,
             parameters=[drive_params, {'use_sim_time': True}],
+            remappings=[('cmd_vel', 'cmd_vel_armed')],
             output='screen',
         ),
 
