@@ -7,5 +7,6 @@ install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
 install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
 install(DIRECTORY maps/ DESTINATION share/${PROJECT_NAME}/maps)
 install(PROGRAMS scripts/sim_global_odom.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/sim_motor_gate.py DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
