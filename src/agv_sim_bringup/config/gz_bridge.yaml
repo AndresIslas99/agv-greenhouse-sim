@@ -71,8 +71,15 @@
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
 
-# IMU (Gz -> ROS) — matches real ZED 2i SDK topic path
+# IMU (Gz -> ROS) — real ZED 2i SDK path (for production EKF config)
 - ros_topic_name: "/zed/zed_node/imu/data"
+  gz_topic_name: "/zed_imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# IMU (Gz -> ROS) — namespaced path (for HIL EKF config)
+- ros_topic_name: "/agv/imu/data"
   gz_topic_name: "/zed_imu"
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "gz.msgs.IMU"
