@@ -52,6 +52,17 @@
     <origin xyz="0.7 0.0 -0.055" rpy="0 0 0"/>
   </joint>
 
+  <gazebo reference="zed_camera_link">
+    <visual>
+      <material>
+        <ambient>0.12 0.12 0.12 1</ambient>
+        <diffuse>0.2 0.2 0.2 1</diffuse>
+        <specular>0.3 0.3 0.3 1</specular>
+        <pbr><metal><metalness>0.2</metalness><roughness>0.4</roughness></metal></pbr>
+      </material>
+    </visual>
+  </gazebo>
+
   <!-- Optical center between lenses (identity transform from camera body) -->
   <link name="zed_camera_center">
     <inertial>
@@ -258,6 +269,14 @@
   </joint>
 
   <gazebo reference="laser_frame">
+    <visual>
+      <material>
+        <ambient>0.6 0.0 0.0 1</ambient>
+        <diffuse>0.8 0.0 0.0 1</diffuse>
+        <specular>0.3 0.1 0.1 1</specular>
+        <pbr><metal><metalness>0.1</metalness><roughness>0.5</roughness></metal></pbr>
+      </material>
+    </visual>
     <sensor name="lidar_sensor" type="gpu_lidar">
       <always_on>true</always_on>
       <visualize>false</visualize>
