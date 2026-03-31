@@ -85,9 +85,4 @@
   gz_type_name: "gz.msgs.IMU"
   direction: GZ_TO_ROS
 
-# Lidar (Gz -> ROS)
-- ros_topic_name: "/agv/scan"
-  gz_topic_name: "/lidar/scan"
-  ros_type_name: "sensor_msgs/msg/LaserScan"
-  gz_type_name: "gz.msgs.LaserScan"
-  direction: GZ_TO_ROS
+# No lidar bridge — /agv/scan comes from depthimage_to_laserscan (ZED depth camera)
