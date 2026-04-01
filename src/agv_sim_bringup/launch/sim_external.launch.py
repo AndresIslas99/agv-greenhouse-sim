@@ -166,25 +166,29 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # ZED 2i depth -> LaserScan (replaces fake lidar)
-        # Real robot has no lidar — scan comes from depth camera via this converter.
-        # Same approach as stereolabs/zed-ros2-examples/zed_depth_to_laserscan
+        # ZED 2i point cloud -> LaserScan (matches real robot pipeline)
+        # Real: ZED → point cloud → pointcloud_to_laserscan (on Jetson) → /agv/scan
+        # Sim:  ZED → point cloud → pointcloud_to_laserscan (on PC)     → /agv/scan → network
+        # Same algorithm, same height filter params. Only ~10KB/frame over network.
         Node(
-            package='depthimage_to_laserscan',
-            executable='depthimage_to_laserscan_node',
-            name='depthimage_to_laserscan',
+            package='pointcloud_to_laserscan',
+            executable='pointcloud_to_laserscan_node',
+            name='pointcloud_to_laserscan',
             namespace=ns,
             parameters=[{
-                'scan_time': 0.033,
+                'min_height': 0.05,
+                'max_height': 1.20,
                 'range_min': 0.3,
                 'range_max': 10.0,
-                'scan_height': 60,
-                'output_frame': 'zed_left_camera_optical_frame',
+                'angle_min': -1.5708,
+                'angle_max': 1.5708,
+                'angle_increment': 0.00436,
+                'scan_time': 0.033,
+                'target_frame': 'base_link',
                 'use_sim_time': True,
             }],
             remappings=[
-                ('depth', '/zed/zed_node/depth/depth_registered'),
-                ('depth_camera_info', '/zed/zed_node/left/camera_info'),
+                ('cloud_in', '/zed/zed_node/point_cloud/cloud_registered'),
                 ('scan', 'scan'),
             ],
             output='screen',
