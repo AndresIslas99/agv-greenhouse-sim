@@ -33,7 +33,7 @@ ekf_local:
     # Topic: /zed/zed_node/imu/data (absolute path, matching real robot)
     imu0: /zed/zed_node/imu/data
     imu0_config: [false, false, false,     # x, y, z
-                  true,  true,  true,      # roll, pitch, yaw
+                  true,  true,  false,     # roll, pitch, yaw (wheel odom owns absolute yaw)
                   false, false, false,     # vx, vy, vz
                   true,  true,  true,      # vroll, vpitch, vyaw
                   true,  true,  false]     # ax, ay, az
