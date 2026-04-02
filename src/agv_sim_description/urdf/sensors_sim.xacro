@@ -92,16 +92,16 @@
   </joint>
 
   <!-- Left camera optical frame (rotated for optical convention: Z forward, X right, Y down) -->
-  <link name="zed_left_camera_optical_frame">
+  <link name="zed_left_camera_frame_optical">
     <inertial>
       <mass value="0.001"/>
       <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
     </inertial>
   </link>
 
-  <joint name="zed_left_camera_optical_joint" type="fixed">
+  <joint name="zed_left_camera_frame_optical_joint" type="fixed">
     <parent link="zed_left_camera_frame"/>
-    <child link="zed_left_camera_optical_frame"/>
+    <child link="zed_left_camera_frame_optical"/>
     <!-- Rotate -90 deg around Z then -90 deg around X for optical convention -->
     <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
@@ -121,16 +121,16 @@
   </joint>
 
   <!-- Right camera optical frame -->
-  <link name="zed_right_camera_optical_frame">
+  <link name="zed_right_camera_frame_optical">
     <inertial>
       <mass value="0.001"/>
       <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
     </inertial>
   </link>
 
-  <joint name="zed_right_camera_optical_joint" type="fixed">
+  <joint name="zed_right_camera_frame_optical_joint" type="fixed">
     <parent link="zed_right_camera_frame"/>
-    <child link="zed_right_camera_optical_frame"/>
+    <child link="zed_right_camera_frame_optical"/>
     <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
 
@@ -163,9 +163,9 @@
   <gazebo reference="zed_left_camera_frame">
     <sensor type="depth_camera" name="zed_left_depth">
       <always_on>true</always_on>
-      <update_rate>30</update_rate>
+      <update_rate>15</update_rate>
       <topic>/zed_left</topic>
-      <gz_frame_id>zed_left_camera_optical_frame</gz_frame_id>
+      <gz_frame_id>zed_left_camera_frame_optical</gz_frame_id>
       <camera>
         <horizontal_fov>1.9199</horizontal_fov>
         <image>
@@ -192,9 +192,9 @@
   <gazebo reference="zed_right_camera_frame">
     <sensor type="camera" name="zed_right_camera">
       <always_on>true</always_on>
-      <update_rate>30</update_rate>
+      <update_rate>15</update_rate>
       <topic>/zed_right</topic>
-      <gz_frame_id>zed_right_camera_optical_frame</gz_frame_id>
+      <gz_frame_id>zed_right_camera_frame_optical</gz_frame_id>
       <camera>
         <horizontal_fov>1.9199</horizontal_fov>
         <image>
@@ -216,12 +216,12 @@
   </gazebo>
 
   <!-- ═══════════════════════════════════════════════════════ -->
-  <!--  ZED 2i IMU — 400Hz, datasheet noise values             -->
+  <!--  ZED 2i IMU — 100Hz matching real ZED SDK publish rate   -->
   <!-- ═══════════════════════════════════════════════════════ -->
   <gazebo reference="imu_link">
     <sensor name="zed_imu" type="imu">
       <always_on>true</always_on>
-      <update_rate>400</update_rate>
+      <update_rate>100</update_rate>
       <topic>/zed_imu</topic>
       <gz_frame_id>imu_link</gz_frame_id>
       <imu>
