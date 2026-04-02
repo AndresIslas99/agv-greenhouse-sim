@@ -94,7 +94,7 @@ def generate_launch_description():
             ),
             launch_arguments={
                 'gz_args': [
-                    '-r ',
+                    '-s -r ',
                     PathJoinSubstitution([
                         FindPackageShare('agv_sim_worlds'), 'worlds',
                         [world_name, '.sdf'],
