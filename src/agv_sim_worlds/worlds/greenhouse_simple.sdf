@@ -63,7 +63,7 @@
             <ambient>0.25 0.2 0.12 1</ambient>
             <diffuse>0.35 0.28 0.16 1</diffuse>
             <specular>0.05 0.04 0.03 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.95</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/ground_soil.png</albedo_map><metalness>0.0</metalness><roughness>0.95</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -80,8 +80,8 @@
           <material>
             <ambient>0.85 0.88 0.85 0.85</ambient>
             <diffuse>0.9 0.93 0.9 0.85</diffuse>
-            <specular>0.4 0.4 0.4 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.3</roughness></metal></pbr>
+            <specular>0.1 0.1 0.1 1</specular>
+            <pbr><metal><albedo_map>model://textures/wall_polycarbonate.png</albedo_map><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -97,8 +97,8 @@
           <material>
             <ambient>0.85 0.88 0.85 0.85</ambient>
             <diffuse>0.9 0.93 0.9 0.85</diffuse>
-            <specular>0.4 0.4 0.4 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.3</roughness></metal></pbr>
+            <specular>0.1 0.1 0.1 1</specular>
+            <pbr><metal><albedo_map>model://textures/wall_polycarbonate.png</albedo_map><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -114,8 +114,8 @@
           <material>
             <ambient>0.85 0.88 0.85 0.85</ambient>
             <diffuse>0.9 0.93 0.9 0.85</diffuse>
-            <specular>0.4 0.4 0.4 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.3</roughness></metal></pbr>
+            <specular>0.1 0.1 0.1 1</specular>
+            <pbr><metal><albedo_map>model://textures/wall_polycarbonate.png</albedo_map><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -131,8 +131,8 @@
           <material>
             <ambient>0.85 0.88 0.85 0.85</ambient>
             <diffuse>0.9 0.93 0.9 0.85</diffuse>
-            <specular>0.4 0.4 0.4 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.3</roughness></metal></pbr>
+            <specular>0.1 0.1 0.1 1</specular>
+            <pbr><metal><albedo_map>model://textures/wall_polycarbonate.png</albedo_map><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -148,8 +148,8 @@
           <material>
             <ambient>0.5 0.5 0.52 1</ambient>
             <diffuse>0.6 0.6 0.63 1</diffuse>
-            <specular>0.3 0.3 0.3 1</specular>
-            <pbr><metal><metalness>0.6</metalness><roughness>0.4</roughness></metal></pbr>
+            <specular>0.15 0.15 0.15 1</specular>
+            <pbr><metal><metalness>0.2</metalness><roughness>0.7</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -163,8 +163,8 @@
           <material>
             <ambient>0.5 0.5 0.52 1</ambient>
             <diffuse>0.6 0.6 0.63 1</diffuse>
-            <specular>0.3 0.3 0.3 1</specular>
-            <pbr><metal><metalness>0.6</metalness><roughness>0.4</roughness></metal></pbr>
+            <specular>0.15 0.15 0.15 1</specular>
+            <pbr><metal><metalness>0.2</metalness><roughness>0.7</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -178,8 +178,8 @@
           <material>
             <ambient>0.5 0.5 0.52 1</ambient>
             <diffuse>0.6 0.6 0.63 1</diffuse>
-            <specular>0.3 0.3 0.3 1</specular>
-            <pbr><metal><metalness>0.6</metalness><roughness>0.4</roughness></metal></pbr>
+            <specular>0.15 0.15 0.15 1</specular>
+            <pbr><metal><metalness>0.2</metalness><roughness>0.7</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -193,8 +193,8 @@
           <material>
             <ambient>0.5 0.5 0.52 1</ambient>
             <diffuse>0.6 0.6 0.63 1</diffuse>
-            <specular>0.3 0.3 0.3 1</specular>
-            <pbr><metal><metalness>0.6</metalness><roughness>0.4</roughness></metal></pbr>
+            <specular>0.15 0.15 0.15 1</specular>
+            <pbr><metal><metalness>0.2</metalness><roughness>0.7</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -208,8 +208,8 @@
           <material>
             <ambient>0.5 0.5 0.52 1</ambient>
             <diffuse>0.6 0.6 0.63 1</diffuse>
-            <specular>0.3 0.3 0.3 1</specular>
-            <pbr><metal><metalness>0.6</metalness><roughness>0.4</roughness></metal></pbr>
+            <specular>0.15 0.15 0.15 1</specular>
+            <pbr><metal><metalness>0.2</metalness><roughness>0.7</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -224,8 +224,8 @@
           <material>
             <ambient>0.5 0.5 0.52 1</ambient>
             <diffuse>0.6 0.6 0.63 1</diffuse>
-            <specular>0.3 0.3 0.3 1</specular>
-            <pbr><metal><metalness>0.6</metalness><roughness>0.4</roughness></metal></pbr>
+            <specular>0.15 0.15 0.15 1</specular>
+            <pbr><metal><metalness>0.2</metalness><roughness>0.7</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -239,8 +239,8 @@
           <material>
             <ambient>0.5 0.5 0.52 1</ambient>
             <diffuse>0.6 0.6 0.63 1</diffuse>
-            <specular>0.3 0.3 0.3 1</specular>
-            <pbr><metal><metalness>0.6</metalness><roughness>0.4</roughness></metal></pbr>
+            <specular>0.15 0.15 0.15 1</specular>
+            <pbr><metal><metalness>0.2</metalness><roughness>0.7</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -258,7 +258,7 @@
             <ambient>0.05 0.25 0.03 1</ambient>
             <diffuse>0.08 0.35 0.05 1</diffuse>
             <specular>0.02 0.05 0.02 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crop_leaves.png</albedo_map><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -275,7 +275,7 @@
             <ambient>0.04 0.22 0.03 1</ambient>
             <diffuse>0.07 0.30 0.04 1</diffuse>
             <specular>0.02 0.04 0.02 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crop_leaves_alt.png</albedo_map><metalness>0.0</metalness><roughness>0.90</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -292,7 +292,7 @@
             <ambient>0.05 0.25 0.03 1</ambient>
             <diffuse>0.08 0.35 0.05 1</diffuse>
             <specular>0.02 0.05 0.02 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crop_leaves.png</albedo_map><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -309,7 +309,7 @@
             <ambient>0.04 0.22 0.03 1</ambient>
             <diffuse>0.07 0.30 0.04 1</diffuse>
             <specular>0.02 0.04 0.02 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crop_leaves_alt.png</albedo_map><metalness>0.0</metalness><roughness>0.90</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -326,7 +326,7 @@
             <ambient>0.05 0.25 0.03 1</ambient>
             <diffuse>0.08 0.35 0.05 1</diffuse>
             <specular>0.02 0.05 0.02 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crop_leaves.png</albedo_map><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -343,7 +343,7 @@
             <ambient>0.04 0.22 0.03 1</ambient>
             <diffuse>0.07 0.30 0.04 1</diffuse>
             <specular>0.02 0.04 0.02 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crop_leaves_alt.png</albedo_map><metalness>0.0</metalness><roughness>0.90</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -360,7 +360,7 @@
             <ambient>0.4 0.28 0.12 1</ambient>
             <diffuse>0.55 0.38 0.18 1</diffuse>
             <specular>0.1 0.08 0.05 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.8</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crate_wood.png</albedo_map><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -376,7 +376,7 @@
             <ambient>0.4 0.28 0.12 1</ambient>
             <diffuse>0.55 0.38 0.18 1</diffuse>
             <specular>0.1 0.08 0.05 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.8</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crate_wood.png</albedo_map><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -392,7 +392,7 @@
             <ambient>0.4 0.28 0.12 1</ambient>
             <diffuse>0.55 0.38 0.18 1</diffuse>
             <specular>0.1 0.08 0.05 1</specular>
-            <pbr><metal><metalness>0.0</metalness><roughness>0.8</roughness></metal></pbr>
+            <pbr><metal><albedo_map>model://textures/crate_wood.png</albedo_map><metalness>0.0</metalness><roughness>0.85</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -412,8 +412,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -428,8 +428,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -445,8 +445,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -461,8 +461,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -478,8 +478,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -494,8 +494,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -511,8 +511,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -527,8 +527,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -544,8 +544,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
@@ -560,8 +560,8 @@
           <material>
             <ambient>0.55 0.55 0.58 1</ambient>
             <diffuse>0.65 0.65 0.70 1</diffuse>
-            <specular>0.5 0.5 0.5 1</specular>
-            <pbr><metal><metalness>0.7</metalness><roughness>0.35</roughness></metal></pbr>
+            <specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr>
           </material>
         </visual>
       </link>
