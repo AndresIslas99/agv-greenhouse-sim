@@ -25,11 +25,12 @@
     </physics>
 
     <!-- ═══════════════ Lighting ═══════════════ -->
+    <!-- Main sun — brighter for greenhouse interior -->
     <light type="directional" name="sun">
       <cast_shadows>true</cast_shadows>
       <pose>0 0 10 0 0 0</pose>
-      <diffuse>0.8 0.8 0.8 1</diffuse>
-      <specular>0.2 0.2 0.2 1</specular>
+      <diffuse>1.0 1.0 0.95 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
       <attenuation>
         <range>1000</range>
         <constant>0.9</constant>
@@ -37,6 +38,24 @@
         <quadratic>0.001</quadratic>
       </attenuation>
       <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Fill light — reduces harsh shadows inside greenhouse -->
+    <light type="directional" name="fill">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.4 0.4 0.45 1</diffuse>
+      <specular>0.05 0.05 0.05 1</specular>
+      <direction>0.5 -0.3 -0.7</direction>
+    </light>
+
+    <!-- Ambient bounce — simulates light scattered by polycarbonate walls -->
+    <light type="directional" name="ambient_bounce">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.25 0.25 0.25 1</diffuse>
+      <specular>0.0 0.0 0.0 1</specular>
+      <direction>0.0 0.0 -1.0</direction>
     </light>
 
     <!-- ═══════════════ Ground Plane ═══════════════ -->
