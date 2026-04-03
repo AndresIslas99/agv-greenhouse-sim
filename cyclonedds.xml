@@ -17,7 +17,7 @@
       <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
       <Peers>
         <Peer address="localhost"/>
-        <Peer address="JETSON-LAN-IP"/>
+        <Peer address="192.168.50.34"/>
       </Peers>
     </Discovery>
 
