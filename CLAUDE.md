@@ -1,38 +1,63 @@
-# Instructions
+# AGV Greenhouse Simulation — CLAUDE.md
 
-You are an autonomous coding subagent spawned by a parent agent to complete a specific task. You run unattended — there is no human in the loop and no way to ask for clarification. You must complete the task fully on your own and then exit.
+This repository is the **virtual body** of the AGV — it contains only the
+simulated physics, sensors, and actuators. The real brain (EKF, Nav2, SLAM,
+cuVSLAM) lives in [agv-greenhouse](https://github.com/AndresIslas99/agv-greenhouse).
 
-You have two categories of skills:
+## Architecture Rule
 
-- **Coding skills** (`coding-workflow`, `commit-push-pr`, `pr-description`, `code-simplifier`, `code-review`): For repository work, writing code, git operations, pull requests, and code quality
-- **Data skills** (`data-triage`, `data-analyst`, `data-model-explorer`): For database queries, metrics, data analysis, and visualizations
-- **Repo skills** (`repo-skills`): After cloning any repo, scan for and index its skill definitions
+> **The sim is the body, not the brain.**
+>
+> Never add EKF, Nav2, SLAM, or cuVSLAM nodes here.
+> The sim publishes raw sensor data; the brain subscribes and drives.
 
-Load the appropriate skill based on the task. If the task involves both code and data, load both. Always load `repo-skills` after cloning a repository.
+## Packages
 
-## Execution Rules
+| Package | Purpose |
+|---------|---------|
+| `agv_sim_description` | URDF/xacro robot model (diff-drive, ZED 2i, IMU) |
+| `agv_sim_worlds` | Gazebo SDF worlds, AprilTag models, PBR textures |
+| `agv_sim_bringup` | Launch files (7 modes), EKF configs, bridge YAML |
+| `agv_sim_drive` | C++ drive-shaping node (ODrive-realistic) |
+| `agv_sim_nav` | Nav2 parameter files |
+| `agv_sim_apriltags` | Marker registry + fake proximity detector |
 
-- Do NOT stall. If an approach isn't working, try a different one immediately.
-- Do NOT explore the codebase endlessly. Get oriented quickly, then start making changes.
-- If a tool is missing (e.g., `rg`), use an available alternative (e.g., `grep -r`) and move on.
-- If a git operation fails, try a different approach (e.g., `gh repo clone` instead of `git clone`).
-- Stay focused on the objective. Do not go on tangents or investigate unrelated code.
-- If you are stuck after multiple retries, abort and report what went wrong rather than looping forever.
+## Topic Parity
 
-## Repo Conventions
+Sim topics must match the real robot 1:1. See `TOPIC_CONTRACT.md` for the
+full table. Key topics:
 
-After cloning any repository, immediately check for and read these files at the repo root:
-- `CLAUDE.md` — Claude Code instructions and project conventions
-- `AGENTS.md` — Agent-specific instructions
+| Sim | Real source | Must match |
+|-----|-------------|------------|
+| `/agv/wheel_odom` | agv_odrive | name + type |
+| `/zed/zed_node/imu/data` | ZED 2i SDK | name + type |
+| `/agv/cmd_vel` | Nav2/teleop | name + type |
+| `/agv/joint_states` | agv_odrive | name + type |
 
-Follow all instructions and conventions found in these files. They define the project's coding standards, test requirements, commit conventions, and PR expectations. If they conflict with these instructions, the repo's files take precedence.
+## Launch Modes
 
-## Core Rules
+| Mode | Command | What it runs |
+|------|---------|-------------|
+| Teleop | `ros2 launch agv_sim_bringup sim_teleop.launch.py` | Gz + robot + keyboard |
+| Mapping | `ros2 launch agv_sim_bringup sim_mapping.launch.py` | + SLAM Toolbox |
+| Fusion | `ros2 launch agv_sim_bringup sim_fusion.launch.py` | + dual EKF |
+| Nav | `ros2 launch agv_sim_bringup sim_nav.launch.py` | + Nav2 |
+| AprilTag | `ros2 launch agv_sim_bringup sim_apriltag.launch.py` | + fake marker detection |
+| External | `ros2 launch agv_sim_bringup sim_external.launch.py` | Gz + bridge (Jetson drives) |
 
-- Ensure all changes follow the project's coding standards (as discovered from repo convention files above)
-- NEVER approve PRs — you are not authorized to approve pull requests. Only create and comment on PRs.
-- Complete the task autonomously and create the PR(s) when done.
+## Conventions
 
-## Output Persistence
+- **Commit style**: `type: short description` (feat, fix, refactor, docs, test, ci)
+- **Python**: ROS2 Humble style, `#!/usr/bin/env python3`, snake_case
+- **C++**: C++17, `-Wall -Wextra -Wpedantic`
+- **Xacro**: one file per subsystem (base, sensors, wheels)
+- **SDF**: all models under `agv_sim_worlds/models/`
+- **Tests**: pytest under `test/` dirs, run with `colcon test`
+- **CI**: GitHub Actions (`.github/workflows/ci.yaml`)
 
-IMPORTANT: Before finishing, you MUST write your complete final response to `/tmp/claude_code_output.md` using the Write tool. This file must contain your full analysis, findings, code, or whatever the final deliverable is. This is a hard requirement — do not skip it.
+## Common Pitfalls
+
+1. **use_sim_time** — all nodes consuming sim topics must set `use_sim_time: true`
+2. **GPU topics** — `/agv/scan` and all camera topics need the Gz ogre2 renderer
+3. **Frame names** — must match real ZED 2i frame hierarchy exactly
+4. **Namespace** — robot topics use `/agv/` namespace
