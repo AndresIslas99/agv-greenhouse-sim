@@ -76,52 +76,62 @@ CRATE_SPECS = [
 ]
 
 # AprilTag placements: (id, x, y, z, rot_x_deg, rot_y_deg, rot_z_deg)
-# Positions and orientations extracted from greenhouse_simple.sdf
+#
+# _quad_mesh creates a quad in the YZ plane with face normal = +X.
+# Rotations use RotateXYZ (degrees) applied to the parent Xform.
+#
+# Rotation cheat sheet (face normal starts as +X):
+#   Vertical facing +X (no rotation):  (0, 0, 0)
+#   Vertical facing -X:                (0, 0, 180)
+#   Vertical facing +Y:                (0, 0, 90)
+#   Vertical facing -Y:                (0, 0, -90)
+#   Floor (face UP +Z):                (0, -90, 0)   — tilt +X toward +Z
+#
 APRILTAG_PLACEMENTS = [
-    # Wall-mounted tags
-    (0, -16.88, 0.0, 0.145, 0, 90, 0),       # West wall center, facing +X
-    (1, 27.88, 0.0, 0.145, 0, -90, 0),        # East wall center, facing -X
-    (5, -16.88, -5.0, 0.145, 0, 90, 0),       # West wall south, facing +X
-    (14, 15.0, 7.38, 0.145, 90, 0, 0),        # North wall, facing -Y
-    (15, 15.0, -7.38, 0.145, -90, 0, 0),      # South wall, facing +Y
-    # East wall per-aisle
-    (16, 27.88, -4.4, 0.145, 0, -90, 0),
-    (17, 27.88, -2.2, 0.145, 0, -90, 0),
-    (18, 27.88, 0.0, 0.145, 0, -90, 0),
-    (19, 27.88, 2.2, 0.145, 0, -90, 0),
-    (20, 27.88, 4.4, 0.145, 0, -90, 0),
-    # West wall per-aisle (rear section)
-    (21, -16.88, -4.4, 0.145, 0, 90, 0),
-    (22, -16.88, -2.2, 0.145, 0, 90, 0),
-    (23, -16.88, 0.0, 0.145, 0, 90, 0),
-    (24, -16.88, 2.2, 0.145, 0, 90, 0),
-    (25, -16.88, 4.4, 0.145, 0, 90, 0),
-    # Front floor aisles (flat, face up)
-    (2, 7.0, -4.4, 0.002, 0, 0, 0),
-    (3, 7.0, -2.2, 0.002, 0, 0, 0),
-    (4, 7.0, 0.0, 0.002, 0, 0, 0),
-    (12, 7.0, 2.2, 0.002, 0, 0, 0),
-    (13, 7.0, 4.4, 0.002, 0, 0, 0),
-    # Rear floor aisles (flat, face up)
-    (33, 4.0, -4.4, 0.002, 0, 0, 0),
-    (34, 4.0, -2.2, 0.002, 0, 0, 0),
-    (35, 4.0, 0.0, 0.002, 0, 0, 0),
-    (36, 4.0, 2.2, 0.002, 0, 0, 0),
-    (37, 4.0, 4.4, 0.002, 0, 0, 0),
-    # Front row starts (facing -X toward robot approach)
-    (6, 7.4, -5.5, 0.145, 0, -90, 0),
-    (7, 7.4, -3.3, 0.145, 0, -90, 0),
-    (8, 7.4, -1.1, 0.145, 0, -90, 0),
-    (9, 7.4, 1.1, 0.145, 0, -90, 0),
-    (10, 7.4, 3.3, 0.145, 0, -90, 0),
-    (11, 7.4, 5.5, 0.145, 0, -90, 0),
-    # Rear row starts (facing +X toward robot approach)
-    (26, 3.6, -5.5, 0.145, 0, 90, 0),
-    (27, 3.6, -3.3, 0.145, 0, 90, 0),
-    (28, 3.6, -1.1, 0.145, 0, 90, 0),
-    (29, 3.6, 1.1, 0.145, 0, 90, 0),
-    (30, 3.6, 3.3, 0.145, 0, 90, 0),
-    (31, 3.6, 5.5, 0.145, 0, 90, 0),
+    # Wall-mounted tags (vertical)
+    (0, -16.88, 0.0, 0.145, 0, 0, 0),          # West wall center, facing +X
+    (1, 27.88, 0.0, 0.145, 0, 0, 180),          # East wall center, facing -X
+    (5, -16.88, -5.0, 0.145, 0, 0, 0),          # West wall south, facing +X
+    (14, 15.0, 7.38, 0.145, 0, 0, -90),         # North wall, facing -Y
+    (15, 15.0, -7.38, 0.145, 0, 0, 90),         # South wall, facing +Y
+    # East wall per-aisle (vertical, facing -X)
+    (16, 27.88, -4.4, 0.145, 0, 0, 180),
+    (17, 27.88, -2.2, 0.145, 0, 0, 180),
+    (18, 27.88, 0.0, 0.145, 0, 0, 180),
+    (19, 27.88, 2.2, 0.145, 0, 0, 180),
+    (20, 27.88, 4.4, 0.145, 0, 0, 180),
+    # West wall per-aisle, rear section (vertical, facing +X)
+    (21, -16.88, -4.4, 0.145, 0, 0, 0),
+    (22, -16.88, -2.2, 0.145, 0, 0, 0),
+    (23, -16.88, 0.0, 0.145, 0, 0, 0),
+    (24, -16.88, 2.2, 0.145, 0, 0, 0),
+    (25, -16.88, 4.4, 0.145, 0, 0, 0),
+    # Front floor aisles (horizontal, face UP +Z)
+    (2, 7.0, -4.4, 0.002, 0, -90, 0),
+    (3, 7.0, -2.2, 0.002, 0, -90, 0),
+    (4, 7.0, 0.0, 0.002, 0, -90, 0),
+    (12, 7.0, 2.2, 0.002, 0, -90, 0),
+    (13, 7.0, 4.4, 0.002, 0, -90, 0),
+    # Rear floor aisles (horizontal, face UP +Z)
+    (33, 4.0, -4.4, 0.002, 0, -90, 0),
+    (34, 4.0, -2.2, 0.002, 0, -90, 0),
+    (35, 4.0, 0.0, 0.002, 0, -90, 0),
+    (36, 4.0, 2.2, 0.002, 0, -90, 0),
+    (37, 4.0, 4.4, 0.002, 0, -90, 0),
+    # Front row starts (vertical, facing -X toward approaching robot)
+    (6, 7.4, -5.5, 0.145, 0, 0, 180),
+    (7, 7.4, -3.3, 0.145, 0, 0, 180),
+    (8, 7.4, -1.1, 0.145, 0, 0, 180),
+    (9, 7.4, 1.1, 0.145, 0, 0, 180),
+    (10, 7.4, 3.3, 0.145, 0, 0, 180),
+    (11, 7.4, 5.5, 0.145, 0, 0, 180),
+    # Rear row starts (vertical, facing +X toward approaching robot)
+    (26, 3.6, -5.5, 0.145, 0, 0, 0),
+    (27, 3.6, -3.3, 0.145, 0, 0, 0),
+    (28, 3.6, -1.1, 0.145, 0, 0, 0),
+    (29, 3.6, 1.1, 0.145, 0, 0, 0),
+    (30, 3.6, 3.3, 0.145, 0, 0, 0),
+    (31, 3.6, 5.5, 0.145, 0, 0, 0),
 ]
 
 
@@ -367,19 +377,22 @@ def build_greenhouse(stage):
         stage, f"{M}/SteelBeam", "",
         metallic=0.5, roughness=0.4)
 
-    # AprilTag border material (white)
+    # AprilTag border material (white, perfectly matte)
     mat_tag_border = create_pbr_material(
         stage, f"{M}/TagBorder", "",
-        roughness=0.9, diffuse_color=Gf.Vec3f(1.0, 1.0, 1.0))
+        roughness=1.0, diffuse_color=Gf.Vec3f(1.0, 1.0, 1.0))
 
     # AprilTag texture materials (one per tag ID used)
     tag_ids_needed = sorted(set(t[0] for t in APRILTAG_PLACEMENTS))
     tag_materials = {}
+    print(f"\n  AprilTag textures ({len(tag_ids_needed)} tags):")
     for tag_id in tag_ids_needed:
         tex_path = tag_texture_path(tag_id)
+        exists = os.path.exists(tex_path)
+        print(f"    Tag {tag_id:2d}: {'OK' if exists else 'MISSING'} -> {tex_path}")
         tag_materials[tag_id] = create_pbr_material(
             stage, f"{M}/AprilTag{tag_id}",
-            tex_path, roughness=0.9)
+            tex_path, roughness=1.0)  # matte for optimal detection contrast
 
     # ── Ground Plane ──────────────────────────────────────────
     create_box(stage, "/World/Ground",
@@ -467,25 +480,25 @@ def build_greenhouse(stage):
     # ── Lighting ──────────────────────────────────────────────
     UsdGeom.Xform.Define(stage, "/World/Lights")
 
-    # Sun (main directional, casts shadows)
+    # Sun (reduced for greenhouse — light diffused by polycarbonate roof)
     sun = UsdLux.DistantLight.Define(stage, "/World/Lights/Sun")
-    sun.CreateIntensityAttr(3000.0)
-    sun.CreateColorAttr(Gf.Vec3f(1.0, 1.0, 0.95))
-    sun.CreateAngleAttr(0.53)
+    sun.CreateIntensityAttr(1200.0)
+    sun.CreateColorAttr(Gf.Vec3f(1.0, 0.98, 0.92))  # warm daylight 5500K
+    sun.CreateAngleAttr(1.0)                          # wider = softer shadows
     sun_xform = UsdGeom.Xformable(sun.GetPrim())
     sun_xform.AddRotateXYZOp().Set(Gf.Vec3f(-64.0, -27.0, 0.0))
 
-    # Fill light
+    # Fill light (cool tone for contrast)
     fill = UsdLux.DistantLight.Define(stage, "/World/Lights/Fill")
-    fill.CreateIntensityAttr(800.0)
-    fill.CreateColorAttr(Gf.Vec3f(0.4, 0.4, 0.45))
+    fill.CreateIntensityAttr(600.0)
+    fill.CreateColorAttr(Gf.Vec3f(0.45, 0.45, 0.48))
     fill_xform = UsdGeom.Xformable(fill.GetPrim())
     fill_xform.AddRotateXYZOp().Set(Gf.Vec3f(-45.0, 30.0, 0.0))
 
-    # Ambient dome
+    # Ambient dome (primary light in greenhouse — roof-diffused daylight)
     dome = UsdLux.DomeLight.Define(stage, "/World/Lights/AmbientDome")
-    dome.CreateIntensityAttr(200.0)
-    dome.CreateColorAttr(Gf.Vec3f(0.25, 0.25, 0.25))
+    dome.CreateIntensityAttr(500.0)
+    dome.CreateColorAttr(Gf.Vec3f(0.3, 0.3, 0.28))
 
 
 def main():
