@@ -23,3 +23,12 @@ def create_physics_scene(stage, cfg):
     prim.CreateAttribute(
         "physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int
     ).Set(cfg["physics"]["timestep_hz"])
+
+    # Solver iterations for stable contact resolution
+    solver_iters = cfg["physics"].get("solver_iterations", 12)
+    prim.CreateAttribute(
+        "physxScene:solverType", Sdf.ValueTypeNames.Token
+    ).Set("TGS")  # Temporal Gauss-Seidel — better for articulated robots
+    prim.CreateAttribute(
+        "physxScene:gpuMaxNumPartitions", Sdf.ValueTypeNames.Int
+    ).Set(solver_iters)

@@ -1,24 +1,32 @@
 # PhysX 5 physics configuration for Isaac Sim
-# Matches Gazebo DART config: 1ms timestep, real-time sync
+#
+# Calibrated values based on real-world material properties:
+# - Rubber on concrete/soil: μs=0.6-0.8, μd=0.5-0.7
+# - Ball casters on hard floor: μs=0.03-0.05, μd=0.02-0.04
+# - Packed greenhouse soil: μs=0.8, μd=0.6
 
 physics:
   timestep: 0.001                # 1ms per step (1000Hz internal)
   gpu_broadphase: true           # GPU collision detection
   gpu_dynamics: true             # GPU rigid body solver
-  solver_iterations: 4           # Position iterations (default for wheeled robots)
+  solver_iterations: 12          # Position iterations — 4 was too low for contact-heavy greenhouse
   real_time_factor: 1.0          # Wall-clock matched (critical for HIL)
   gravity: [0.0, 0.0, -9.81]
 
 materials:
   wheel:
-    static_friction: 1.0
-    dynamic_friction: 1.0
+    # Rubber tire on packed soil/concrete: measured range μs=0.6-0.8
+    static_friction: 0.7
+    dynamic_friction: 0.6
     restitution: 0.0
   caster:
-    static_friction: 0.001
-    dynamic_friction: 0.001
+    # Nylon ball caster on hard floor: measured range μs=0.02-0.05
+    # Previous value 0.001 was 20-50x too low (ice-skating behavior)
+    static_friction: 0.03
+    dynamic_friction: 0.025
     restitution: 0.0
   ground:
+    # Packed greenhouse soil surface
     static_friction: 0.8
     dynamic_friction: 0.6
     restitution: 0.0

@@ -18,8 +18,8 @@ WHEEL_SEPARATION = 0.735   # 735mm track width
 # Publish rates (Hz)
 ODOM_RATE = 50
 JOINT_STATE_RATE = 50
-CAMERA_RATE = 15
-IMU_RATE = 100
+CAMERA_RATE = 30
+IMU_RATE = 400
 
 # ZED 2i camera specs
 CAMERA_WIDTH = 1280
@@ -28,9 +28,16 @@ CAMERA_HFOV_DEG = 110.0   # 1.9199 rad
 CAMERA_CLIP_NEAR = 0.3
 CAMERA_CLIP_FAR = 20.0
 
-# IMU noise (matching Gazebo sensors_sim.xacro)
+# IMU noise (matching Gazebo sensors_sim.xacro, BMI055 datasheet)
 IMU_GYRO_NOISE = 0.00279   # rad/s stddev
 IMU_ACCEL_NOISE = 0.0314   # m/s² stddev
+
+# Depth camera noise model (ZED 2i calibrated)
+# Real ZED 2i: noise scales with distance squared
+# σ_depth(d) = DEPTH_NOISE_BASE + DEPTH_NOISE_SCALE * d
+# At 1m: ~7mm, at 5m: ~30mm, at 10m: ~55mm
+DEPTH_NOISE_BASE = 0.002    # meters (minimum noise floor)
+DEPTH_NOISE_SCALE = 0.005   # meters per meter of distance
 
 # ROS 2 topic names (must match TOPIC_CONTRACT.md)
 TOPICS = {
