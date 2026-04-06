@@ -1,0 +1,24 @@
+# PhysX 5 physics configuration for Isaac Sim
+# Matches Gazebo DART config: 1ms timestep, real-time sync
+
+physics:
+  timestep: 0.001                # 1ms per step (1000Hz internal)
+  gpu_broadphase: true           # GPU collision detection
+  gpu_dynamics: true             # GPU rigid body solver
+  solver_iterations: 4           # Position iterations (default for wheeled robots)
+  real_time_factor: 1.0          # Wall-clock matched (critical for HIL)
+  gravity: [0.0, 0.0, -9.81]
+
+materials:
+  wheel:
+    static_friction: 1.0
+    dynamic_friction: 1.0
+    restitution: 0.0
+  caster:
+    static_friction: 0.001
+    dynamic_friction: 0.001
+    restitution: 0.0
+  ground:
+    static_friction: 0.8
+    dynamic_friction: 0.6
+    restitution: 0.0
