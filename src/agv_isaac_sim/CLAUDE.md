@@ -24,10 +24,13 @@ rendering (RTX) for the Lenovo Legion 7 Pro (RTX 4080, 12GB VRAM).
 ## Usage
 
 ```bash
-# Generate world and robot USD (one-time, run inside Isaac Sim Python)
-cd src/agv_isaac_sim
-isaacsim --exec scripts/build_greenhouse_usd.py
-isaacsim --exec scripts/import_robot_usd.py
+# Generate unified world + robot USD (one-time, run inside Isaac Sim Python)
+cd src/agv_isaac_sim/scripts
+isaacsim --exec build_greenhouse_with_robot.py
+
+# Or generate separately:
+# isaacsim --exec build_greenhouse_usd.py
+# isaacsim --exec import_robot_usd.py
 
 # Launch simulation
 ros2 launch agv_isaac_sim isaac_teleop.launch.py

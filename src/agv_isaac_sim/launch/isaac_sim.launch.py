@@ -34,8 +34,7 @@ def generate_launch_description():
     drive_pkg = get_package_share_directory('agv_sim_drive')
 
     drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
-    world_usd = os.path.join(isaac_pkg, 'worlds', 'greenhouse_simple.usd')
-    robot_usd = os.path.join(isaac_pkg, 'robot', 'agv_sim.usd')
+    world_usd = os.path.join(isaac_pkg, 'worlds', 'greenhouse_with_robot.usd')
 
     # Process URDF for robot_state_publisher
     xacro_file = os.path.join(description_pkg, 'urdf', 'agv_sim.urdf.xacro')
