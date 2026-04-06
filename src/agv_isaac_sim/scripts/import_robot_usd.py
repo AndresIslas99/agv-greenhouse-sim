@@ -376,18 +376,18 @@ def setup_physics_materials(stage, robot_path):
     """Apply friction materials to wheels and casters."""
     print("Setting up physics materials...")
 
-    # Wheel material (high friction)
+    # Wheel material — calibrated: rubber on packed soil/concrete (μs=0.6-0.8)
     wheel_mat = UsdPhysics.MaterialAPI.Apply(
         UsdShade.Material.Define(stage, f"{robot_path}/Materials/WheelMaterial").GetPrim())
-    wheel_mat.CreateStaticFrictionAttr(1.0)
-    wheel_mat.CreateDynamicFrictionAttr(1.0)
+    wheel_mat.CreateStaticFrictionAttr(0.7)
+    wheel_mat.CreateDynamicFrictionAttr(0.6)
     wheel_mat.CreateRestitutionAttr(0.0)
 
-    # Caster material (low friction)
+    # Caster material — calibrated: nylon ball caster on hard floor (μs=0.02-0.05)
     caster_mat = UsdPhysics.MaterialAPI.Apply(
         UsdShade.Material.Define(stage, f"{robot_path}/Materials/CasterMaterial").GetPrim())
-    caster_mat.CreateStaticFrictionAttr(0.001)
-    caster_mat.CreateDynamicFrictionAttr(0.001)
+    caster_mat.CreateStaticFrictionAttr(0.03)
+    caster_mat.CreateDynamicFrictionAttr(0.025)
     caster_mat.CreateRestitutionAttr(0.0)
 
     # Bind materials to collision geometry
@@ -401,7 +401,7 @@ def setup_physics_materials(stage, robot_path):
         if caster_prim:
             PhysxSchema.PhysxMaterialAPI.Apply(caster_prim)
 
-    print("  Wheels: friction=1.0, Casters: friction=0.001")
+    print("  Wheels: μs=0.7/μd=0.6 (rubber on soil), Casters: μs=0.03/μd=0.025 (nylon)")
 
 
 def main():
