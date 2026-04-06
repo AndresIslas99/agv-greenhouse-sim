@@ -22,8 +22,11 @@ def create_pbr_material(stage, mat_path, texture_file, metallic=0.0, roughness=0
         shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(
             tex_reader.ConnectableAPI(), "rgb")
     else:
+        if texture_file:
+            print(f"  WARNING: Texture not found: {texture_file}")
+        # Bright magenta fallback — makes missing textures obvious
         shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(
-            Gf.Vec3f(0.5, 0.5, 0.5))
+            Gf.Vec3f(1.0, 0.0, 1.0))
 
     material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
     return material
