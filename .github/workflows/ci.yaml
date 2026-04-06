@@ -32,10 +32,12 @@ jobs:
       - name: Validate xacro processing
         run: |
           source /opt/ros/humble/setup.bash
+          source install/setup.bash
           xacro src/agv_sim_description/urdf/agv_sim.urdf.xacro > /dev/null
 
       - name: Run URDF tests
         run: |
           source /opt/ros/humble/setup.bash
+          source install/setup.bash
           cd src/agv_sim_description
           python3 -m pytest test/test_urdf.py -v --tb=short
