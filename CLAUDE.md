@@ -21,6 +21,7 @@ cuVSLAM) lives in [agv-greenhouse](https://github.com/AndresIslas99/agv-greenhou
 | `agv_sim_drive` | C++ drive-shaping node (ODrive-realistic) |
 | `agv_sim_nav` | Nav2 parameter files |
 | `agv_sim_apriltags` | Marker registry + fake proximity detector |
+| `agv_isaac_sim` | **Isaac Sim** integration (GPU physics + RTX rendering) |
 
 ## Topic Parity
 
@@ -45,6 +46,14 @@ full table. Key topics:
 | AprilTag | `ros2 launch agv_sim_bringup sim_apriltag.launch.py` | + fake marker detection |
 | External | `ros2 launch agv_sim_bringup sim_external.launch.py` | Gz + bridge (Jetson drives) |
 
+### Isaac Sim Modes (GPU-accelerated, RTX 4080)
+
+| Mode | Command | What it runs |
+|------|---------|-------------|
+| Teleop | `ros2 launch agv_isaac_sim isaac_teleop.launch.py` | Isaac Sim + robot + keyboard |
+| Nav | `ros2 launch agv_isaac_sim isaac_nav.launch.py` | + EKF + SLAM + Nav2 |
+| External | `ros2 launch agv_isaac_sim isaac_external.launch.py` | Isaac Sim + bridge (Jetson drives) |
+
 ## Conventions
 
 - **Commit style**: `type: short description` (feat, fix, refactor, docs, test, ci)
@@ -58,6 +67,7 @@ full table. Key topics:
 ## Common Pitfalls
 
 1. **use_sim_time** — all nodes consuming sim topics must set `use_sim_time: true`
-2. **GPU topics** — `/agv/scan` and all camera topics need the Gz ogre2 renderer
+2. **GPU topics** — `/agv/scan` and all camera topics need GPU rendering (ogre2 / RTX)
 3. **Frame names** — must match real ZED 2i frame hierarchy exactly
 4. **Namespace** — robot topics use `/agv/` namespace
+5. **Isaac Sim USD** — run `build_greenhouse_usd.py` + `import_robot_usd.py` before first launch
