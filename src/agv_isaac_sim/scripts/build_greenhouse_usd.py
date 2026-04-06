@@ -24,7 +24,7 @@ from isaacsim import SimulationApp
 simulation_app = SimulationApp({"headless": True})
 
 import omni.usd
-from pxr import Usd, UsdGeom, UsdPhysics, UsdShade, Sdf, Gf, UsdLux
+from pxr import Usd, UsdGeom, UsdPhysics, UsdShade, Sdf, Gf, Vt, UsdLux
 
 # ── Paths ─────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -142,7 +142,10 @@ def create_physics_scene(stage):
 
 def create_pbr_material(stage, mat_path, texture_file, metallic=0.0, roughness=0.8,
                         diffuse_color=None):
-    """Create a PBR material with an albedo texture or solid color."""
+    """Create a PBR material with an albedo texture or solid color.
+
+    Texture paths are stored relative to the USD file for portability.
+    """
     material = UsdShade.Material.Define(stage, mat_path)
     shader = UsdShade.Shader.Define(stage, f"{mat_path}/Shader")
     shader.CreateIdAttr("UsdPreviewSurface")
@@ -150,9 +153,12 @@ def create_pbr_material(stage, mat_path, texture_file, metallic=0.0, roughness=0
     shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(roughness)
 
     if texture_file and os.path.exists(texture_file):
+        # Use relative path from USD file location for portability
+        rel_path = os.path.relpath(texture_file, os.path.dirname(OUTPUT_PATH))
+
         tex_reader = UsdShade.Shader.Define(stage, f"{mat_path}/DiffuseTexture")
         tex_reader.CreateIdAttr("UsdUVTexture")
-        tex_reader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(texture_file)
+        tex_reader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(f"./{rel_path}")
         tex_reader.CreateInput("wrapS", Sdf.ValueTypeNames.Token).Set("repeat")
         tex_reader.CreateInput("wrapT", Sdf.ValueTypeNames.Token).Set("repeat")
         tex_reader.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
@@ -167,23 +173,78 @@ def create_pbr_material(stage, mat_path, texture_file, metallic=0.0, roughness=0
     return material
 
 
+def _box_mesh_data(sx, sy, sz):
+    """Generate vertices, face indices, normals, and UVs for an axis-aligned box."""
+    # 8 corner vertices of a box centered at origin
+    pts = [
+        (-sx, -sy, -sz), (sx, -sy, -sz), (sx, sy, -sz), (-sx, sy, -sz),  # bottom
+        (-sx, -sy, sz), (sx, -sy, sz), (sx, sy, sz), (-sx, sy, sz),      # top
+    ]
+    # 6 quad faces (vertex indices)
+    faces = [
+        (4, 5, 6, 7),  # +Z top
+        (0, 3, 2, 1),  # -Z bottom
+        (0, 1, 5, 4),  # -Y front
+        (2, 3, 7, 6),  # +Y back
+        (0, 4, 7, 3),  # -X left
+        (1, 2, 6, 5),  # +X right
+    ]
+    normals = [
+        (0, 0, 1), (0, 0, -1), (0, -1, 0), (0, 1, 0), (-1, 0, 0), (1, 0, 0),
+    ]
+    # UVs per face-vertex (faceVarying), tiling proportional to face size
+    face_sizes = [
+        (2*sx, 2*sy), (2*sx, 2*sy),  # top/bottom: X×Y
+        (2*sx, 2*sz), (2*sx, 2*sz),  # front/back: X×Z
+        (2*sy, 2*sz), (2*sy, 2*sz),  # left/right: Y×Z
+    ]
+
+    all_indices = []
+    all_normals = []
+    all_uvs = []
+    face_counts = []
+    for i, face in enumerate(faces):
+        all_indices.extend(face)
+        face_counts.append(4)
+        n = normals[i]
+        for _ in range(4):
+            all_normals.append(n)
+        w, h = face_sizes[i]
+        all_uvs.extend([(0, 0), (w, 0), (w, h), (0, h)])
+
+    return pts, all_indices, face_counts, all_normals, all_uvs
+
+
 def create_box(stage, path, size, position, rotation_deg=(0, 0, 0), material=None, is_static=True):
-    """Create a box prim with collision and optional material."""
+    """Create a box mesh with UVs, collision, and material."""
     xform = UsdGeom.Xform.Define(stage, path)
     xform.AddTranslateOp().Set(Gf.Vec3d(*position))
     if any(r != 0 for r in rotation_deg):
         xform.AddRotateXYZOp().Set(Gf.Vec3f(*rotation_deg))
 
-    cube = UsdGeom.Cube.Define(stage, f"{path}/Mesh")
-    cube.AddScaleOp().Set(Gf.Vec3f(size[0] / 2.0, size[1] / 2.0, size[2] / 2.0))
+    sx, sy, sz = size[0] / 2.0, size[1] / 2.0, size[2] / 2.0
+    pts, indices, face_counts, normals, uvs = _box_mesh_data(sx, sy, sz)
 
-    UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+    mesh = UsdGeom.Mesh.Define(stage, f"{path}/Mesh")
+    mesh.CreatePointsAttr([Gf.Vec3f(*p) for p in pts])
+    mesh.CreateFaceVertexIndicesAttr(indices)
+    mesh.CreateFaceVertexCountsAttr(face_counts)
+    mesh.CreateNormalsAttr([Gf.Vec3f(*n) for n in normals])
+    mesh.SetNormalsInterpolation(UsdGeom.Tokens.faceVarying)
+
+    # UV coordinates for texture mapping
+    pv_api = UsdGeom.PrimvarsAPI(mesh.GetPrim())
+    uv_pv = pv_api.CreatePrimvar("st", Sdf.ValueTypeNames.TexCoord2fArray,
+                                 UsdGeom.Tokens.faceVarying)
+    uv_pv.Set(Vt.Vec2fArray([Gf.Vec2f(*u) for u in uvs]))
+
+    UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
     if is_static:
         UsdPhysics.RigidBodyAPI.Apply(xform.GetPrim())
         xform.GetPrim().CreateAttribute("physics:kinematicEnabled", Sdf.ValueTypeNames.Bool).Set(True)
 
     if material:
-        UsdShade.MaterialBindingAPI(cube.GetPrim()).Bind(material)
+        UsdShade.MaterialBindingAPI(mesh.GetPrim()).Bind(material)
 
     return xform
 
@@ -208,10 +269,36 @@ def create_cylinder(stage, path, radius, height, position, rotation_deg=(0, 0, 0
     return xform
 
 
+def _quad_mesh(stage, prim_path, width, height, material=None):
+    """Create a single-sided quad mesh with proper UVs facing +X."""
+    mesh = UsdGeom.Mesh.Define(stage, prim_path)
+    hw, hh = width / 2.0, height / 2.0
+    # Quad in YZ plane, facing +X
+    mesh.CreatePointsAttr([
+        Gf.Vec3f(0, -hw, -hh), Gf.Vec3f(0, hw, -hh),
+        Gf.Vec3f(0, hw, hh), Gf.Vec3f(0, -hw, hh),
+    ])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+    mesh.CreateFaceVertexCountsAttr([4])
+    mesh.CreateNormalsAttr([Gf.Vec3f(1, 0, 0)] * 4)
+    mesh.SetNormalsInterpolation(UsdGeom.Tokens.faceVarying)
+
+    pv_api = UsdGeom.PrimvarsAPI(mesh.GetPrim())
+    uv_pv = pv_api.CreatePrimvar("st", Sdf.ValueTypeNames.TexCoord2fArray,
+                                 UsdGeom.Tokens.faceVarying)
+    uv_pv.Set(Vt.Vec2fArray([
+        Gf.Vec2f(0, 0), Gf.Vec2f(1, 0), Gf.Vec2f(1, 1), Gf.Vec2f(0, 1),
+    ]))
+
+    if material:
+        UsdShade.MaterialBindingAPI(mesh.GetPrim()).Bind(material)
+    return mesh
+
+
 def create_apriltag(stage, path, position, rotation_deg, tag_material, border_material):
     """Create a two-layer AprilTag: white border (0.25×0.25) + textured tag (0.2×0.2).
 
-    Matches the SDF model structure with two visuals for proper AprilTag detection.
+    Uses flat quad meshes with UVs so textures render correctly.
     Tag face normal is along local +X axis before rotation.
     """
     xform = UsdGeom.Xform.Define(stage, path)
@@ -219,17 +306,13 @@ def create_apriltag(stage, path, position, rotation_deg, tag_material, border_ma
     if any(r != 0 for r in rotation_deg):
         xform.AddRotateXYZOp().Set(Gf.Vec3f(*rotation_deg))
 
-    # White border: 0.25×0.25×0.0005, slightly behind tag
-    border = UsdGeom.Cube.Define(stage, f"{path}/Border")
-    border.AddScaleOp().Set(Gf.Vec3f(0.00025, 0.125, 0.125))
-    UsdShade.MaterialBindingAPI(border.GetPrim()).Bind(border_material)
+    # White border quad: 0.25×0.25
+    _quad_mesh(stage, f"{path}/Border", 0.25, 0.25, border_material)
 
-    # Tag face: 0.2×0.2×0.001, centered on border
-    tag = UsdGeom.Cube.Define(stage, f"{path}/Tag")
-    tag_xform = UsdGeom.Xformable(tag.GetPrim())
-    tag_xform.AddTranslateOp().Set(Gf.Vec3d(0.0003, 0.0, 0.0))
-    tag.AddScaleOp().Set(Gf.Vec3f(0.0005, 0.1, 0.1))
-    UsdShade.MaterialBindingAPI(tag.GetPrim()).Bind(tag_material)
+    # Tag texture quad: 0.2×0.2, slightly in front of border
+    tag_xform = UsdGeom.Xform.Define(stage, f"{path}/TagFace")
+    tag_xform.AddTranslateOp().Set(Gf.Vec3d(0.001, 0.0, 0.0))
+    _quad_mesh(stage, f"{path}/TagFace/Quad", 0.2, 0.2, tag_material)
 
     return xform
 
