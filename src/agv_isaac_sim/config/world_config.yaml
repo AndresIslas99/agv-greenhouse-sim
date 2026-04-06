@@ -19,6 +19,7 @@ physics:
 ground:
   size: [34.0, 19.0, 0.1]
   position: [15.0, 0.0, -0.05]
+  slope_percent: 0.5             # 0.5% longitudinal drainage slope (real greenhouse)
   material: {texture: "ground_soil.png", roughness: 0.95, metallic: 0.0}
 
 walls:

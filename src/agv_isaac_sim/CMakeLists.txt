@@ -12,6 +12,7 @@ install(DIRECTORY extensions/ DESTINATION share/${PROJECT_NAME}/extensions)
 install(PROGRAMS scripts/build_greenhouse_usd.py DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/import_robot_usd.py DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/isaac_ros_bridge_node.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/sim_depth_noise.py DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY scripts/world/ DESTINATION lib/${PROJECT_NAME}/world)
 install(DIRECTORY scripts/robot/ DESTINATION lib/${PROJECT_NAME}/robot)
 
