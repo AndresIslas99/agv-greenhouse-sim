@@ -4,6 +4,7 @@
   ros__parameters:
     wheel_radius: 0.0625         # meters (125mm diameter wheels)
     track_width: 0.735           # meters (center-to-center)
+    gear_ratio: 10.0             # motor-to-wheel reduction (10:1)
     publish_rate_hz: 50
     cmd_vel_timeout_ms: 500      # stop if no cmd_vel for this long
     invert_left: false

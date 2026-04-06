@@ -32,9 +32,9 @@ Topics consumed from network (Jetson -> PC):
     /agv/e_stop     (std_msgs/Bool)
 
 Usage:
-  PC:     ros2 launch agv_sim_bringup sim_external.launch.py
+  WiFi:   ros2 launch agv_sim_bringup sim_external.launch.py
+  USB:    ros2 launch agv_sim_bringup sim_external.launch.py transport:=usb
   Jetson: ros2 topic list  # should see /agv/wheel_odom, /zed/zed_node/imu/data, etc.
-  Jetson: ros2 topic pub /agv/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}}" -r 10
 """
 
 import os
@@ -43,12 +43,24 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    OpaqueFunction,
     SetEnvironmentVariable,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+
+def _set_cyclone_uri(context):
+    """Resolve transport arg and set CYCLONEDDS_URI accordingly."""
+    transport = context.launch_configurations.get('transport', 'wifi')
+    suffix = '_usb' if transport == 'usb' else ''
+    # Workspace root: go up 4 levels from package share dir
+    pkg_share = get_package_share_directory('agv_sim_bringup')
+    ws_root = os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.dirname(pkg_share))))
+    cfg = os.path.join(ws_root, f'cyclonedds{suffix}.xml')
+    return [SetEnvironmentVariable('CYCLONEDDS_URI', f'file://{cfg}')]
 
 
 def generate_launch_description():
@@ -67,9 +79,16 @@ def generate_launch_description():
         DeclareLaunchArgument('namespace', default_value='agv'),
         DeclareLaunchArgument('world', default_value='greenhouse_simple',
                               description='World name without .sdf extension'),
-        DeclareLaunchArgument('x', default_value='2.0'),
+        DeclareLaunchArgument('x', default_value='5.5'),
         DeclareLaunchArgument('y', default_value='0.0'),
         DeclareLaunchArgument('yaw', default_value='0.0'),
+        DeclareLaunchArgument('transport', default_value='wifi',
+                              description='Network transport: "wifi" or "usb"'),
+        DeclareLaunchArgument('gui', default_value='true',
+                              description='Launch Gz GUI (true) or headless (false)'),
+
+        # CycloneDDS config — pick WiFi or USB based on transport arg
+        OpaqueFunction(function=_set_cyclone_uri),
 
         # Force NVIDIA GPU for Gz rendering (PRIME offload on hybrid laptops)
         SetEnvironmentVariable('__NV_PRIME_RENDER_OFFLOAD', '1'),
@@ -94,7 +113,10 @@ def generate_launch_description():
             ),
             launch_arguments={
                 'gz_args': [
-                    '-r ',
+                    PythonExpression([
+                        "'-r ' if '", LaunchConfiguration('gui'),
+                        "' == 'true' else '-s --headless-rendering '"
+                    ]),
                     PathJoinSubstitution([
                         FindPackageShare('agv_sim_worlds'), 'worlds',
                         [world_name, '.sdf'],
@@ -176,7 +198,9 @@ def generate_launch_description():
             name='pointcloud_to_laserscan',
             namespace=ns,
             parameters=[{
-                'min_height': 0.05,
+                # Camera at z=-0.055m in base_link. Ground at z=-0.2m.
+                # min_height=-0.15 captures walls/obstacles above ground, filters floor.
+                'min_height': -0.15,
                 'max_height': 1.20,
                 'range_min': 0.3,
                 'range_max': 10.0,

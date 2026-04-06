@@ -2,42 +2,130 @@
 """Procedural USD world builder for the AGV greenhouse simulation.
 
 Run inside Isaac Sim standalone Python:
-    isaacsim --exec build_greenhouse_usd.py
+    python3 build_greenhouse_usd.py
 
-Or from the Isaac Sim script editor.
-
-Recreates greenhouse_simple.sdf as a USD stage with:
-- Ground plane (34×19m, soil texture)
+Recreates greenhouse_simple.sdf as a USD stage with full SDF parity:
+- Ground plane (49×19m, soil texture)
 - 4 enclosure walls (3m high, polycarbonate)
-- 6 crop rows (20×1.0×1.5m)
-- 10 heating pipe rails (51mm cylinders)
-- 10 roof beams (steel)
-- 6 AprilTag markers (tag36h11 textures)
+- 12 crop rows: 6 front (X=17.5) + 6 rear (X=-6.5)
+- 20 heating pipe rails: 10 front + 10 rear (51mm cylinders)
+- 7 roof beams (steel)
+- 36 AprilTag markers (tag36h11, two-layer: white border + textured tag)
 - 3 static crate obstacles
-- 3 directional lights
+- 3 lights (sun, fill, ambient dome)
 - PhysX scene (1ms timestep, GPU broadphase)
 """
 
 import os
 import math
 
-# Isaac Sim imports
 from isaacsim import SimulationApp
 
-# Launch headless Isaac Sim for USD generation
 simulation_app = SimulationApp({"headless": True})
 
 import omni.usd
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade, Sdf, Gf, UsdLux
 
-# Resolve texture paths relative to this script
+# ── Paths ─────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PACKAGE_DIR = os.path.dirname(SCRIPT_DIR)
 WORLDS_PKG = os.path.join(os.path.dirname(PACKAGE_DIR), "agv_sim_worlds")
 TEXTURES_DIR = os.path.join(WORLDS_PKG, "models", "textures")
-TAG_TEXTURES_DIR = os.path.join(WORLDS_PKG, "materials", "textures")
 OUTPUT_PATH = os.path.join(PACKAGE_DIR, "worlds", "greenhouse_simple.usd")
 
+
+def tag_texture_path(tag_id):
+    """Resolve AprilTag texture path: models/apriltag_N/textures/tag36h11_idN.png"""
+    return os.path.join(WORLDS_PKG, "models", f"apriltag_{tag_id}",
+                        "textures", f"tag36h11_id{tag_id}.png")
+
+
+# ── Geometry Data (from greenhouse_simple.sdf) ────────────────────
+
+# Ground & walls
+GROUND_SIZE = (49.0, 19.0, 0.1)
+GROUND_POS = (5.5, 0.0, -0.05)
+
+WALL_SPECS = [
+    ("North", (5.5, 7.5, 1.5), (45.0, 0.2, 3.0)),
+    ("South", (5.5, -7.5, 1.5), (45.0, 0.2, 3.0)),
+    ("West", (-17.0, 0.0, 1.5), (0.2, 15.0, 3.0)),
+    ("East", (28.0, 0.0, 1.5), (0.2, 15.0, 3.0)),
+]
+
+# Crop rows: 6 Y positions, two sections
+ROW_Y_POSITIONS = [-5.5, -3.3, -1.1, 1.1, 3.3, 5.5]
+ROW_SIZE = (20.0, 1.0, 1.5)
+ROW_Z = 0.75
+FRONT_ROWS_X = 17.5
+REAR_ROWS_X = -6.5
+
+# Heating rails: 5 aisle centers, 2 rails per aisle
+AISLE_CENTERS_Y = [-4.4, -2.2, 0.0, 2.2, 4.4]
+RAIL_HALF_SPACING = 0.225
+RAIL_RADIUS = 0.0255
+RAIL_LENGTH = 20.0
+FRONT_RAILS_X = 17.5
+REAR_RAILS_X = -6.5
+
+# Crates
+CRATE_SPECS = [
+    ("Crate1", (3.5, -2.0, 0.15), (0.5, 0.4, 0.3), 17.2),
+    ("Crate2", (4.0, 3.5, 0.15), (0.5, 0.4, 0.3), -11.5),
+    ("Crate3", (25.0, 0.0, 0.15), (0.5, 0.4, 0.3), 28.6),
+]
+
+# AprilTag placements: (id, x, y, z, rot_x_deg, rot_y_deg, rot_z_deg)
+# Positions and orientations extracted from greenhouse_simple.sdf
+APRILTAG_PLACEMENTS = [
+    # Wall-mounted tags
+    (0, -16.88, 0.0, 0.145, 0, 90, 0),       # West wall center, facing +X
+    (1, 27.88, 0.0, 0.145, 0, -90, 0),        # East wall center, facing -X
+    (5, -16.88, -5.0, 0.145, 0, 90, 0),       # West wall south, facing +X
+    (14, 15.0, 7.38, 0.145, 90, 0, 0),        # North wall, facing -Y
+    (15, 15.0, -7.38, 0.145, -90, 0, 0),      # South wall, facing +Y
+    # East wall per-aisle
+    (16, 27.88, -4.4, 0.145, 0, -90, 0),
+    (17, 27.88, -2.2, 0.145, 0, -90, 0),
+    (18, 27.88, 0.0, 0.145, 0, -90, 0),
+    (19, 27.88, 2.2, 0.145, 0, -90, 0),
+    (20, 27.88, 4.4, 0.145, 0, -90, 0),
+    # West wall per-aisle (rear section)
+    (21, -16.88, -4.4, 0.145, 0, 90, 0),
+    (22, -16.88, -2.2, 0.145, 0, 90, 0),
+    (23, -16.88, 0.0, 0.145, 0, 90, 0),
+    (24, -16.88, 2.2, 0.145, 0, 90, 0),
+    (25, -16.88, 4.4, 0.145, 0, 90, 0),
+    # Front floor aisles (flat, face up)
+    (2, 7.0, -4.4, 0.002, 0, 0, 0),
+    (3, 7.0, -2.2, 0.002, 0, 0, 0),
+    (4, 7.0, 0.0, 0.002, 0, 0, 0),
+    (12, 7.0, 2.2, 0.002, 0, 0, 0),
+    (13, 7.0, 4.4, 0.002, 0, 0, 0),
+    # Rear floor aisles (flat, face up)
+    (33, 4.0, -4.4, 0.002, 0, 0, 0),
+    (34, 4.0, -2.2, 0.002, 0, 0, 0),
+    (35, 4.0, 0.0, 0.002, 0, 0, 0),
+    (36, 4.0, 2.2, 0.002, 0, 0, 0),
+    (37, 4.0, 4.4, 0.002, 0, 0, 0),
+    # Front row starts (facing -X toward robot approach)
+    (6, 7.4, -5.5, 0.145, 0, -90, 0),
+    (7, 7.4, -3.3, 0.145, 0, -90, 0),
+    (8, 7.4, -1.1, 0.145, 0, -90, 0),
+    (9, 7.4, 1.1, 0.145, 0, -90, 0),
+    (10, 7.4, 3.3, 0.145, 0, -90, 0),
+    (11, 7.4, 5.5, 0.145, 0, -90, 0),
+    # Rear row starts (facing +X toward robot approach)
+    (26, 3.6, -5.5, 0.145, 0, 90, 0),
+    (27, 3.6, -3.3, 0.145, 0, 90, 0),
+    (28, 3.6, -1.1, 0.145, 0, 90, 0),
+    (29, 3.6, 1.1, 0.145, 0, 90, 0),
+    (30, 3.6, 3.3, 0.145, 0, 90, 0),
+    (31, 3.6, 5.5, 0.145, 0, 90, 0),
+]
+
+
+# ── Helper Functions ──────────────────────────────────────────────
 
 def create_physics_scene(stage):
     """Configure PhysX scene: 1ms timestep, GPU acceleration."""
@@ -45,7 +133,6 @@ def create_physics_scene(stage):
     scene.CreateGravityDirectionAttr(Gf.Vec3f(0.0, 0.0, -1.0))
     scene.CreateGravityMagnitudeAttr(9.81)
 
-    # PhysX GPU settings
     physx_scene = stage.GetPrimAtPath("/World/PhysicsScene")
     physx_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
     physx_scene.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.Token).Set("GPU")
@@ -53,8 +140,9 @@ def create_physics_scene(stage):
     physx_scene.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(1000)
 
 
-def create_pbr_material(stage, mat_path, texture_file, metallic=0.0, roughness=0.8):
-    """Create a PBR material with an albedo texture."""
+def create_pbr_material(stage, mat_path, texture_file, metallic=0.0, roughness=0.8,
+                        diffuse_color=None):
+    """Create a PBR material with an albedo texture or solid color."""
     material = UsdShade.Material.Define(stage, mat_path)
     shader = UsdShade.Shader.Define(stage, f"{mat_path}/Shader")
     shader.CreateIdAttr("UsdPreviewSurface")
@@ -70,6 +158,8 @@ def create_pbr_material(stage, mat_path, texture_file, metallic=0.0, roughness=0
         tex_reader.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
         shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(
             tex_reader.ConnectableAPI(), "rgb")
+    elif diffuse_color is not None:
+        shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(diffuse_color)
     else:
         shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.5, 0.5, 0.5))
 
@@ -87,7 +177,6 @@ def create_box(stage, path, size, position, rotation_deg=(0, 0, 0), material=Non
     cube = UsdGeom.Cube.Define(stage, f"{path}/Mesh")
     cube.AddScaleOp().Set(Gf.Vec3f(size[0] / 2.0, size[1] / 2.0, size[2] / 2.0))
 
-    # Physics collision
     UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
     if is_static:
         UsdPhysics.RigidBodyAPI.Apply(xform.GetPrim())
@@ -119,28 +208,39 @@ def create_cylinder(stage, path, radius, height, position, rotation_deg=(0, 0, 0
     return xform
 
 
-def create_plane(stage, path, width, height, position, rotation_deg=(0, 0, 0), material=None):
-    """Create a thin plane (quad) for AprilTag markers."""
+def create_apriltag(stage, path, position, rotation_deg, tag_material, border_material):
+    """Create a two-layer AprilTag: white border (0.25×0.25) + textured tag (0.2×0.2).
+
+    Matches the SDF model structure with two visuals for proper AprilTag detection.
+    Tag face normal is along local +X axis before rotation.
+    """
     xform = UsdGeom.Xform.Define(stage, path)
     xform.AddTranslateOp().Set(Gf.Vec3d(*position))
     if any(r != 0 for r in rotation_deg):
         xform.AddRotateXYZOp().Set(Gf.Vec3f(*rotation_deg))
 
-    # Use a very thin cube to represent a plane
-    cube = UsdGeom.Cube.Define(stage, f"{path}/Mesh")
-    cube.AddScaleOp().Set(Gf.Vec3f(0.001, width / 2.0, height / 2.0))
+    # White border: 0.25×0.25×0.0005, slightly behind tag
+    border = UsdGeom.Cube.Define(stage, f"{path}/Border")
+    border.AddScaleOp().Set(Gf.Vec3f(0.00025, 0.125, 0.125))
+    UsdShade.MaterialBindingAPI(border.GetPrim()).Bind(border_material)
 
-    if material:
-        UsdShade.MaterialBindingAPI(cube.GetPrim()).Bind(material)
+    # Tag face: 0.2×0.2×0.001, centered on border
+    tag = UsdGeom.Cube.Define(stage, f"{path}/Tag")
+    tag_xform = UsdGeom.Xformable(tag.GetPrim())
+    tag_xform.AddTranslateOp().Set(Gf.Vec3d(0.0003, 0.0, 0.0))
+    tag.AddScaleOp().Set(Gf.Vec3f(0.0005, 0.1, 0.1))
+    UsdShade.MaterialBindingAPI(tag.GetPrim()).Bind(tag_material)
 
     return xform
 
 
+# ── Main Builder ──────────────────────────────────────────────────
+
 def build_greenhouse(stage):
-    """Build the complete greenhouse environment."""
+    """Build the complete greenhouse environment matching SDF parity."""
 
     # Root xform
-    world = UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World")
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
 
@@ -148,159 +248,151 @@ def build_greenhouse(stage):
     create_physics_scene(stage)
 
     # ── Materials ──────────────────────────────────────────────
-    materials_root = "/World/Materials"
+    M = "/World/Materials"
 
     mat_soil = create_pbr_material(
-        stage, f"{materials_root}/Soil",
+        stage, f"{M}/Soil",
         os.path.join(TEXTURES_DIR, "ground_soil.png"),
         roughness=0.95)
 
     mat_wall = create_pbr_material(
-        stage, f"{materials_root}/Polycarbonate",
+        stage, f"{M}/Polycarbonate",
         os.path.join(TEXTURES_DIR, "wall_polycarbonate.png"),
         roughness=0.65)
 
     mat_crop_a = create_pbr_material(
-        stage, f"{materials_root}/CropLeaves",
+        stage, f"{M}/CropLeaves",
         os.path.join(TEXTURES_DIR, "crop_leaves.png"),
         roughness=0.9)
 
     mat_crop_b = create_pbr_material(
-        stage, f"{materials_root}/CropLeavesAlt",
+        stage, f"{M}/CropLeavesAlt",
         os.path.join(TEXTURES_DIR, "crop_leaves_alt.png"),
         roughness=0.9)
 
     mat_rail = create_pbr_material(
-        stage, f"{materials_root}/Steel",
+        stage, f"{M}/Steel",
         os.path.join(TEXTURES_DIR, "rail_steel.png"),
         metallic=0.3, roughness=0.6)
 
     mat_crate = create_pbr_material(
-        stage, f"{materials_root}/CrateWood",
+        stage, f"{M}/CrateWood",
         os.path.join(TEXTURES_DIR, "crate_wood.png"),
         roughness=0.85)
 
     mat_beam = create_pbr_material(
-        stage, f"{materials_root}/SteelBeam", "",
+        stage, f"{M}/SteelBeam", "",
         metallic=0.5, roughness=0.4)
 
-    # AprilTag materials (one per tag ID)
+    # AprilTag border material (white)
+    mat_tag_border = create_pbr_material(
+        stage, f"{M}/TagBorder", "",
+        roughness=0.9, diffuse_color=Gf.Vec3f(1.0, 1.0, 1.0))
+
+    # AprilTag texture materials (one per tag ID used)
+    tag_ids_needed = sorted(set(t[0] for t in APRILTAG_PLACEMENTS))
     tag_materials = {}
-    for tag_id in range(6):
-        tex_path = os.path.join(TAG_TEXTURES_DIR, f"tag36h11_id{tag_id}.png")
+    for tag_id in tag_ids_needed:
+        tex_path = tag_texture_path(tag_id)
         tag_materials[tag_id] = create_pbr_material(
-            stage, f"{materials_root}/AprilTag{tag_id}",
+            stage, f"{M}/AprilTag{tag_id}",
             tex_path, roughness=0.9)
 
     # ── Ground Plane ──────────────────────────────────────────
     create_box(stage, "/World/Ground",
-               size=(34.0, 19.0, 0.1),
-               position=(15.0, 0.0, -0.05),
+               size=GROUND_SIZE,
+               position=GROUND_POS,
                material=mat_soil)
 
     # ── Walls ─────────────────────────────────────────────────
-    walls = UsdGeom.Xform.Define(stage, "/World/Walls")
-
-    wall_specs = [
-        ("North", (15.0, 7.5, 1.5), (30.0, 0.2, 3.0)),
-        ("South", (15.0, -7.5, 1.5), (30.0, 0.2, 3.0)),
-        ("West", (0.0, 0.0, 1.5), (0.2, 15.0, 3.0)),
-        ("East", (30.0, 0.0, 1.5), (0.2, 15.0, 3.0)),
-    ]
-    for name, pos, size in wall_specs:
+    UsdGeom.Xform.Define(stage, "/World/Walls")
+    for name, pos, size in WALL_SPECS:
         create_box(stage, f"/World/Walls/{name}",
                    size=size, position=pos, material=mat_wall)
 
-    # ── Crop Rows ─────────────────────────────────────────────
-    rows = UsdGeom.Xform.Define(stage, "/World/CropRows")
+    # ── Crop Rows (front + rear) ──────────────────────────────
+    UsdGeom.Xform.Define(stage, "/World/CropRows")
 
-    row_y_positions = [-5.5, -3.3, -1.1, 1.1, 3.3, 5.5]
-    for i, y in enumerate(row_y_positions):
+    for i, y in enumerate(ROW_Y_POSITIONS):
         mat = mat_crop_a if i % 2 == 0 else mat_crop_b
+        # Front section
         create_box(stage, f"/World/CropRows/Row{i + 1}",
-                   size=(20.0, 1.0, 1.5),
-                   position=(16.0, y, 0.75),
+                   size=ROW_SIZE,
+                   position=(FRONT_ROWS_X, y, ROW_Z),
+                   material=mat)
+        # Rear section
+        create_box(stage, f"/World/CropRows/RearRow{i + 1}",
+                   size=ROW_SIZE,
+                   position=(REAR_ROWS_X, y, ROW_Z),
                    material=mat)
 
-    # ── Heating Pipe Rails ────────────────────────────────────
-    rails = UsdGeom.Xform.Define(stage, "/World/Rails")
+    # ── Heating Pipe Rails (front + rear) ─────────────────────
+    UsdGeom.Xform.Define(stage, "/World/Rails")
 
-    aisle_centers_y = [-4.4, -2.2, 0.0, 2.2, 4.4]
-    rail_offset = 0.225  # half of 0.45m spacing
-    rail_radius = 0.0255  # 51mm diameter / 2
-
-    for i, y_center in enumerate(aisle_centers_y):
-        for side, offset in [("Left", -rail_offset), ("Right", rail_offset)]:
+    for i, y_center in enumerate(AISLE_CENTERS_Y):
+        for side, offset in [("Left", -RAIL_HALF_SPACING), ("Right", RAIL_HALF_SPACING)]:
+            # Front section
             create_cylinder(
                 stage, f"/World/Rails/Aisle{i + 1}_{side}",
-                radius=rail_radius, height=20.0,
-                position=(16.0, y_center + offset, rail_radius),
-                rotation_deg=(0.0, 90.0, 0.0),  # Rotate to lie along X
+                radius=RAIL_RADIUS, height=RAIL_LENGTH,
+                position=(FRONT_RAILS_X, y_center + offset, RAIL_RADIUS),
+                rotation_deg=(0.0, 90.0, 0.0),
+                material=mat_rail)
+            # Rear section
+            create_cylinder(
+                stage, f"/World/Rails/RearAisle{i + 1}_{side}",
+                radius=RAIL_RADIUS, height=RAIL_LENGTH,
+                position=(REAR_RAILS_X, y_center + offset, RAIL_RADIUS),
+                rotation_deg=(0.0, 90.0, 0.0),
                 material=mat_rail)
 
     # ── Roof Beams ────────────────────────────────────────────
-    beams = UsdGeom.Xform.Define(stage, "/World/RoofBeams")
+    UsdGeom.Xform.Define(stage, "/World/RoofBeams")
 
-    # Transverse beams (Y-direction)
     for i, x in enumerate([5.0, 10.0, 15.0, 20.0, 25.0]):
         create_box(stage, f"/World/RoofBeams/Transverse{i + 1}",
                    size=(0.08, 15.0, 0.08),
                    position=(x, 0.0, 3.0),
                    material=mat_beam)
 
-    # Longitudinal beams (X-direction)
     for i, y in enumerate([-3.5, 3.5]):
         create_box(stage, f"/World/RoofBeams/Longitudinal{i + 1}",
                    size=(30.0, 0.08, 0.08),
                    position=(15.0, y, 3.0),
                    material=mat_beam)
 
-    # ── AprilTag Markers ──────────────────────────────────────
-    tags = UsdGeom.Xform.Define(stage, "/World/AprilTags")
+    # ── AprilTag Markers (all 36 from SDF) ────────────────────
+    UsdGeom.Xform.Define(stage, "/World/AprilTags")
 
-    # (id, x, y, z, yaw_degrees)
-    tag_placements = [
-        (0, 1.0, 0.0, 0.25, 90.0),     # West corridor, facing +X
-        (1, 29.0, 0.0, 0.25, -90.0),    # East corridor, facing -X
-        (2, 6.0, -4.4, 0.25, -90.0),    # Aisle 1-2 entrance
-        (3, 6.0, 0.0, 0.25, -90.0),     # Aisle 3-4 entrance
-        (4, 6.0, 4.4, 0.25, -90.0),     # Aisle 5-6 entrance
-        (5, 2.5, -5.0, 0.25, 0.0),      # Starting area
-    ]
-
-    for tag_id, x, y, z, yaw in tag_placements:
-        create_plane(stage, f"/World/AprilTags/Tag{tag_id}",
-                     width=0.2, height=0.2,
-                     position=(x, y, z),
-                     rotation_deg=(0.0, 0.0, yaw),
-                     material=tag_materials[tag_id])
+    for tag_id, x, y, z, rx, ry, rz in APRILTAG_PLACEMENTS:
+        create_apriltag(
+            stage, f"/World/AprilTags/Tag{tag_id}",
+            position=(x, y, z),
+            rotation_deg=(rx, ry, rz),
+            tag_material=tag_materials[tag_id],
+            border_material=mat_tag_border)
 
     # ── Static Crate Obstacles ────────────────────────────────
-    crates = UsdGeom.Xform.Define(stage, "/World/Crates")
+    UsdGeom.Xform.Define(stage, "/World/Crates")
 
-    crate_specs = [
-        ("Crate1", (3.5, -2.0, 0.15), (0.5, 0.4, 0.3), 17.2),   # 0.3 rad
-        ("Crate2", (4.0, 3.5, 0.15), (0.5, 0.4, 0.3), -11.5),   # -0.2 rad
-        ("Crate3", (25.0, 0.0, 0.15), (0.5, 0.4, 0.3), 28.6),   # 0.5 rad
-    ]
-    for name, pos, size, yaw_deg in crate_specs:
+    for name, pos, size, yaw_deg in CRATE_SPECS:
         create_box(stage, f"/World/Crates/{name}",
                    size=size, position=pos,
                    rotation_deg=(0.0, 0.0, yaw_deg),
                    material=mat_crate)
 
     # ── Lighting ──────────────────────────────────────────────
-    lights = UsdGeom.Xform.Define(stage, "/World/Lights")
+    UsdGeom.Xform.Define(stage, "/World/Lights")
 
     # Sun (main directional, casts shadows)
     sun = UsdLux.DistantLight.Define(stage, "/World/Lights/Sun")
     sun.CreateIntensityAttr(3000.0)
     sun.CreateColorAttr(Gf.Vec3f(1.0, 1.0, 0.95))
-    sun.CreateAngleAttr(0.53)  # Sun disk angle for soft shadows
+    sun.CreateAngleAttr(0.53)
     sun_xform = UsdGeom.Xformable(sun.GetPrim())
     sun_xform.AddRotateXYZOp().Set(Gf.Vec3f(-64.0, -27.0, 0.0))
 
-    # Fill light (no shadows)
+    # Fill light
     fill = UsdLux.DistantLight.Define(stage, "/World/Lights/Fill")
     fill.CreateIntensityAttr(800.0)
     fill.CreateColorAttr(Gf.Vec3f(0.4, 0.4, 0.45))
@@ -314,16 +406,26 @@ def build_greenhouse(stage):
 
 
 def main():
-    # Create new stage
     stage = Usd.Stage.CreateNew(OUTPUT_PATH)
 
-    print(f"Building greenhouse USD world...")
+    print("Building greenhouse USD world (full SDF parity)...")
     print(f"  Textures: {TEXTURES_DIR}")
     print(f"  Output:   {OUTPUT_PATH}")
 
     build_greenhouse(stage)
 
     stage.GetRootLayer().Save()
+
+    # Count elements
+    n_tags = len(APRILTAG_PLACEMENTS)
+    n_rows = len(ROW_Y_POSITIONS) * 2
+    n_rails = len(AISLE_CENTERS_Y) * 2 * 2
+    print(f"  Ground:    49×19m")
+    print(f"  Walls:     4")
+    print(f"  Crop rows: {n_rows} (front + rear)")
+    print(f"  Rails:     {n_rails} (front + rear)")
+    print(f"  AprilTags: {n_tags}")
+    print(f"  Crates:    {len(CRATE_SPECS)}")
     print(f"Greenhouse USD saved to: {OUTPUT_PATH}")
 
     simulation_app.close()

@@ -24,6 +24,7 @@ private:
   double right_sign_;
   double left_scale_;
   double right_scale_;
+  double gear_ratio_;
   float zero_vel_epsilon_;
   float min_effective_vel_;
   float max_wheel_accel_;

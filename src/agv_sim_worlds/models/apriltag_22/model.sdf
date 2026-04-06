@@ -1,0 +1,28 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="apriltag_22">
+    <static>true</static>
+    <link name="link">
+      <visual name="border_visual">
+        <pose>0 0 -0.00025 0 0 0</pose>
+        <geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
+        <material>
+          <ambient>1.0 1.0 1.0 1</ambient>
+          <diffuse>1.0 1.0 1.0 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name="tag_visual">
+        <geometry><box><size>0.2 0.2 0.001</size></box></geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <pbr><metal>
+            <albedo_map>model://apriltag_22/textures/tag36h11_id22.png</albedo_map>
+            <metalness>0.0</metalness>
+            <roughness>1.0</roughness>
+          </metal></pbr>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

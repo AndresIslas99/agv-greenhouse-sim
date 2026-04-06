@@ -5,11 +5,7 @@
     <link name="link">
       <visual name="border_visual">
         <pose>0 0 -0.00025 0 0 0</pose>
-        <geometry>
-          <box>
-            <size>0.25 0.25 0.0005</size>
-          </box>
-        </geometry>
+        <geometry><box><size>0.25 0.25 0.0005</size></box></geometry>
         <material>
           <ambient>1.0 1.0 1.0 1</ambient>
           <diffuse>1.0 1.0 1.0 1</diffuse>
@@ -17,30 +13,16 @@
         </material>
       </visual>
       <visual name="tag_visual">
-        <pose>0 0 0 0 0 0</pose>
-        <geometry>
-          <box>
-            <size>0.2 0.2 0.001</size>
-          </box>
-        </geometry>
+        <geometry><box><size>0.2 0.2 0.001</size></box></geometry>
         <material>
           <diffuse>1 1 1 1</diffuse>
-          <pbr>
-            <metal>
-              <albedo_map>model://apriltag_2/textures/tag36h11_id2.png</albedo_map>
-              <metalness>0.0</metalness>
-              <roughness>1.0</roughness>
-            </metal>
-          </pbr>
+          <pbr><metal>
+            <albedo_map>model://apriltag_2/textures/tag36h11_id2.png</albedo_map>
+            <metalness>0.0</metalness>
+            <roughness>1.0</roughness>
+          </metal></pbr>
         </material>
       </visual>
-      <collision name="collision">
-        <geometry>
-          <box>
-            <size>0.25 0.25 0.001</size>
-          </box>
-        </geometry>
-      </collision>
     </link>
   </model>
 </sdf>
