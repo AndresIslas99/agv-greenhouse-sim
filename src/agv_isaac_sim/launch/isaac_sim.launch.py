@@ -97,4 +97,24 @@ def generate_launch_description():
             parameters=[{'use_sim_time': True}],
             output='screen',
         ),
+
+        # Depth noise injector — adds calibrated distance-dependent noise
+        # to match real ZED 2i depth accuracy: σ(d) = 0.002 + 0.005×d
+        Node(
+            package='agv_isaac_sim',
+            executable='sim_depth_noise.py',
+            name='sim_depth_noise',
+            parameters=[{
+                'use_sim_time': True,
+                'noise_base': 0.002,
+                'noise_scale': 0.005,
+                'dropout_distance': 15.0,
+                'dropout_rate': 0.3,
+            }],
+            remappings=[
+                ('depth_raw', '/zed/zed_node/depth/raw'),
+                ('depth_registered', '/zed/zed_node/depth/depth_registered'),
+            ],
+            output='screen',
+        ),
     ])
