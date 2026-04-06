@@ -163,7 +163,7 @@
   <gazebo reference="zed_left_camera_frame">
     <sensor type="depth_camera" name="zed_left_depth">
       <always_on>true</always_on>
-      <update_rate>15</update_rate>
+      <update_rate>30</update_rate>
       <topic>/zed_left</topic>
       <gz_frame_id>zed_left_camera_frame_optical</gz_frame_id>
       <camera>
@@ -192,7 +192,7 @@
   <gazebo reference="zed_right_camera_frame">
     <sensor type="camera" name="zed_right_camera">
       <always_on>true</always_on>
-      <update_rate>15</update_rate>
+      <update_rate>30</update_rate>
       <topic>/zed_right</topic>
       <gz_frame_id>zed_right_camera_frame_optical</gz_frame_id>
       <camera>
@@ -216,12 +216,12 @@
   </gazebo>
 
   <!-- ═══════════════════════════════════════════════════════ -->
-  <!--  ZED 2i IMU — 100Hz matching real ZED SDK publish rate   -->
+  <!--  ZED 2i IMU — 400Hz matching real ZED 2i BMI055 native rate -->
   <!-- ═══════════════════════════════════════════════════════ -->
   <gazebo reference="imu_link">
     <sensor name="zed_imu" type="imu">
       <always_on>true</always_on>
-      <update_rate>100</update_rate>
+      <update_rate>400</update_rate>
       <topic>/zed_imu</topic>
       <gz_frame_id>imu_link</gz_frame_id>
       <imu>

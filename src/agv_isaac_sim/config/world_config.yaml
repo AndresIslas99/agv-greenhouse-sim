@@ -10,6 +10,7 @@ textures:
 
 physics:
   timestep_hz: 1000
+  solver_iterations: 12        # 4 was too low; 12 for stable contact in cluttered greenhouse
   gpu_broadphase: true
   gpu_dynamics: true
   gpu_max_contacts: 524288
@@ -36,6 +37,13 @@ crop_rows:
   height: 1.5
   center_x: 16.0
   y_positions: [-5.5, -3.3, -1.1, 1.1, 3.3, 5.5]
+  # Foliage simulation: rows are built from segments with gaps to simulate
+  # porous leaf canopy. This gives realistic depth camera returns (not flat walls).
+  foliage:
+    segment_length: 0.8         # each plant segment along X
+    gap_length: 0.15            # gap between plants (air, visible to depth camera)
+    height_variation: 0.15      # ±random height variation per segment
+    width_variation: 0.05       # ±random width variation per segment
   materials:
     - {texture: "crop_leaves.png", roughness: 0.9, metallic: 0.0}
     - {texture: "crop_leaves_alt.png", roughness: 0.9, metallic: 0.0}
@@ -106,15 +114,26 @@ obstacles:
     - {name: Crate3, position: [25.0, 0.0, 0.15], size: [0.5, 0.4, 0.3], yaw: 28.6}
 
 lighting:
+  # Greenhouse lighting: diffuse through translucent polycarbonate roof.
+  # Real greenhouses have almost no hard shadows — light is scattered by
+  # ribbed polycarbonate panels. Sun reduced, dome increased to simulate.
   sun:
-    intensity: 3000.0
-    color: [1.0, 1.0, 0.95]
-    angle: 0.53
+    intensity: 1200.0            # was 3000 — too directional for greenhouse
+    color: [1.0, 0.98, 0.92]    # warm daylight (5500K approximate)
+    angle: 1.0                   # wider sun disk = softer shadows
     rotation: [-64.0, -27.0, 0.0]
   fill:
-    intensity: 800.0
-    color: [0.4, 0.4, 0.45]
+    intensity: 600.0
+    color: [0.45, 0.45, 0.48]   # cool fill for contrast
     rotation: [-45.0, 30.0, 0.0]
   ambient_dome:
-    intensity: 200.0
-    color: [0.25, 0.25, 0.25]
+    intensity: 500.0             # was 200 — primary light source in greenhouse
+    color: [0.3, 0.3, 0.28]     # warm ambient from soil/leaf reflection
+
+  # Tier 2: Volumetric fog for humidity simulation
+  # Isaac Sim RTX supports volumetric particles. Enable when needed.
+  fog:
+    enabled: false               # set true to enable humidity fog
+    density: 0.02                # particles/m³ (light haze = 0.01, misting = 0.1)
+    color: [0.95, 0.95, 1.0]    # slightly blue-white water vapor
+    height_max: 2.0              # fog below 2m (where misting occurs)
