@@ -1,6 +1,8 @@
 """Greenhouse structural elements: ground, walls, crop rows, rails, roof beams."""
 
-from pxr import UsdGeom
+import random
+
+from pxr import UsdGeom, Gf
 
 from .primitives import create_box, create_cylinder
 
@@ -23,16 +25,52 @@ def create_walls(stage, materials, cfg):
 
 
 def create_crop_rows(stage, materials, cfg):
-    """Create the 6 parallel crop rows."""
+    """Create crop rows as segmented foliage with gaps.
+
+    Instead of monolithic boxes, each row is built from plant segments
+    with gaps between them. This gives realistic depth camera returns
+    (individual plant silhouettes vs flat walls) and allows partial
+    see-through at certain angles — matching real greenhouse crops.
+
+    Segments have random height/width variation to break visual uniformity.
+    """
     UsdGeom.Xform.Define(stage, "/World/CropRows")
     r = cfg["crop_rows"]
+    f = r.get("foliage", {})
     mat_keys = ["crop_a", "crop_b"]
 
-    for i, y in enumerate(r["y_positions"]):
-        create_box(stage, f"/World/CropRows/Row{i + 1}",
-                   size=(r["length"], r["width"], r["height"]),
-                   position=(r["center_x"], y, r["height"] / 2.0),
-                   material=materials[mat_keys[i % 2]])
+    seg_len = f.get("segment_length", 0.8)
+    gap_len = f.get("gap_length", 0.15)
+    h_var = f.get("height_variation", 0.15)
+    w_var = f.get("width_variation", 0.05)
+
+    stride = seg_len + gap_len
+    row_start_x = r["center_x"] - r["length"] / 2.0
+
+    # Deterministic seed for reproducible greenhouse layout
+    rng = random.Random(42)
+
+    for row_i, y in enumerate(r["y_positions"]):
+        row_path = f"/World/CropRows/Row{row_i + 1}"
+        UsdGeom.Xform.Define(stage, row_path)
+        mat = materials[mat_keys[row_i % 2]]
+
+        num_segments = int(r["length"] / stride)
+        for seg_i in range(num_segments):
+            # Per-segment random variation
+            dh = rng.uniform(-h_var, h_var)
+            dw = rng.uniform(-w_var, w_var)
+            seg_h = r["height"] + dh
+            seg_w = r["width"] + dw
+
+            seg_x = row_start_x + seg_i * stride + seg_len / 2.0
+            seg_z = seg_h / 2.0
+
+            create_box(
+                stage, f"{row_path}/Seg{seg_i}",
+                size=(seg_len, seg_w, seg_h),
+                position=(seg_x, y, seg_z),
+                material=mat)
 
 
 def create_rails(stage, materials, cfg):

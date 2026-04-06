@@ -1,4 +1,9 @@
-"""Physics material assignment for robot components."""
+"""Physics material assignment for robot components.
+
+Friction values calibrated to real-world measurements:
+- Rubber on concrete/soil: μs=0.7, μd=0.6
+- Nylon ball casters on hard floor: μs=0.03, μd=0.025
+"""
 
 from pxr import UsdPhysics, UsdShade, PhysxSchema
 
@@ -14,18 +19,17 @@ def _create_physics_material(stage, path, static_friction, dynamic_friction, res
 
 
 def setup_physics_materials(stage, robot_path):
-    """Apply friction materials to wheels and casters."""
+    """Apply calibrated friction materials to wheels and casters."""
     print("Setting up physics materials...")
 
     _create_physics_material(
         stage, f"{robot_path}/Materials/WheelMaterial",
-        static_friction=1.0, dynamic_friction=1.0)
+        static_friction=0.7, dynamic_friction=0.6)
 
     _create_physics_material(
         stage, f"{robot_path}/Materials/CasterMaterial",
-        static_friction=0.001, dynamic_friction=0.001)
+        static_friction=0.03, dynamic_friction=0.025)
 
-    # Bind materials to collision geometry
     for wheel in ["left_wheel", "right_wheel"]:
         prim = stage.GetPrimAtPath(f"{robot_path}/{wheel}")
         if prim:
@@ -36,4 +40,5 @@ def setup_physics_materials(stage, robot_path):
         if prim:
             PhysxSchema.PhysxMaterialAPI.Apply(prim)
 
-    print("  Wheels: friction=1.0, Casters: friction=0.001")
+    print("  Wheels: μs=0.7/μd=0.6 (rubber on soil)")
+    print("  Casters: μs=0.03/μd=0.025 (nylon on floor)")
