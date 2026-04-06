@@ -15,15 +15,15 @@ TEMP_URDF = os.path.join(PACKAGE_DIR, "robot", "agv_sim_processed.urdf")
 WHEEL_RADIUS = 0.0625      # 125mm diameter
 WHEEL_SEPARATION = 0.735   # 735mm track width
 
-# Publish rates (Hz)
+# Publish rates (Hz) — match real ZED SDK ROS publish rates
 ODOM_RATE = 50
 JOINT_STATE_RATE = 50
-CAMERA_RATE = 30
-IMU_RATE = 400
+CAMERA_RATE = 15        # ZED SDK publishes 15fps over ROS (internal 30/60 is SDK-only)
+IMU_RATE = 100          # ZED SDK publishes 100Hz over ROS (BMI055 internal 400Hz)
 
-# ZED 2i camera specs
-CAMERA_WIDTH = 1280
-CAMERA_HEIGHT = 720
+# ZED 2i camera specs — 640×360 for Isaac Sim performance (matching Gazebo xacro)
+CAMERA_WIDTH = 640
+CAMERA_HEIGHT = 360
 CAMERA_HFOV_DEG = 110.0   # 1.9199 rad
 CAMERA_CLIP_NEAR = 0.3
 CAMERA_CLIP_FAR = 20.0

@@ -17,8 +17,8 @@ physics:
   gravity: [0.0, 0.0, -9.81]
 
 ground:
-  size: [34.0, 19.0, 0.1]
-  position: [15.0, 0.0, -0.05]
+  size: [49.0, 19.0, 0.1]
+  position: [5.5, 0.0, -0.05]
   slope_percent: 0.5             # 0.5% longitudinal drainage slope (real greenhouse)
   material: {texture: "ground_soil.png", roughness: 0.95, metallic: 0.0}
 
@@ -26,11 +26,12 @@ walls:
   height: 3.0
   thickness: 0.2
   material: {texture: "wall_polycarbonate.png", roughness: 0.85, metallic: 0.0}
+  # Note: actual wall specs are in build_greenhouse_usd.py (expanded 49×19m greenhouse)
   specs:
-    - {name: North, position: [15.0, 7.5, 1.5], size: [30.0, 0.2, 3.0]}
-    - {name: South, position: [15.0, -7.5, 1.5], size: [30.0, 0.2, 3.0]}
-    - {name: West,  position: [0.0, 0.0, 1.5],   size: [0.2, 15.0, 3.0]}
-    - {name: East,  position: [30.0, 0.0, 1.5],   size: [0.2, 15.0, 3.0]}
+    - {name: North, position: [5.5, 7.5, 1.5],   size: [45.0, 0.2, 3.0]}
+    - {name: South, position: [5.5, -7.5, 1.5],  size: [45.0, 0.2, 3.0]}
+    - {name: West,  position: [-17.0, 0.0, 1.5],  size: [0.2, 15.0, 3.0]}
+    - {name: East,  position: [28.0, 0.0, 1.5],   size: [0.2, 15.0, 3.0]}
 
 crop_rows:
   length: 20.0
@@ -73,8 +74,10 @@ apriltags:
   tag_thickness: 0.001
   border_thickness: 0.005
   family: "tag36h11"
-  # Tags are wall-mounted: flush against wall inner face or on mounting posts
-  # mount_type: wall_west | wall_east | post
+  total_count: 36          # IDs 0-37, placed by build_greenhouse_usd.py
+  # Note: Full 36-tag placement is hardcoded in build_greenhouse_usd.py
+  # (expanded greenhouse with front + rear sections).
+  # The entries below are the original 6 reference tags.
   tags:
     - id: 0
       description: "West wall, corridor center, facing +X"

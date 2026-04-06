@@ -29,7 +29,7 @@ joint_states:
 imu:
   topic: /zed/zed_node/imu/data
   type: sensor_msgs/msg/Imu
-  rate: 400
+  rate: 100
   frame_id: imu_link
   source: IsaacIMU
   # Also published as /agv/imu/data
@@ -37,40 +37,40 @@ imu:
 left_rgb:
   topic: /zed/zed_node/left/image_rect_color
   type: sensor_msgs/msg/Image
-  rate: 30
+  rate: 15
   frame_id: zed_left_camera_frame_optical
   source: IsaacCamera (left)
 
 left_depth:
   topic: /zed/zed_node/depth/depth_registered
   type: sensor_msgs/msg/Image
-  rate: 30
+  rate: 15
   frame_id: zed_left_camera_frame_optical
   source: IsaacCamera (left, depth output)
 
 left_camera_info:
   topic: /zed/zed_node/left/camera_info
   type: sensor_msgs/msg/CameraInfo
-  rate: 30
+  rate: 15
   source: IsaacCamera (left)
 
 right_rgb:
   topic: /zed/zed_node/right/image_rect_color
   type: sensor_msgs/msg/Image
-  rate: 30
+  rate: 15
   frame_id: zed_right_camera_frame_optical
   source: IsaacCamera (right)
 
 right_camera_info:
   topic: /zed/zed_node/right/camera_info
   type: sensor_msgs/msg/CameraInfo
-  rate: 30
+  rate: 15
   source: IsaacCamera (right)
 
 point_cloud:
   topic: /zed/zed_node/point_cloud/cloud_registered
   type: sensor_msgs/msg/PointCloud2
-  rate: 30
+  rate: 15
   frame_id: zed_left_camera_frame_optical
   source: IsaacCamera (left, point cloud output)
 
