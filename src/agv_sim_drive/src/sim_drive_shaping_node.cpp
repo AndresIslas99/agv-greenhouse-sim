@@ -15,6 +15,7 @@ SimDriveShapingNode::SimDriveShapingNode() : Node("sim_drive_shaping_node") {
   this->declare_parameter("invert_right", false);
   this->declare_parameter("left_scale", 1.0);
   this->declare_parameter("right_scale", 1.0);
+  this->declare_parameter("gear_ratio", 10.0);
   this->declare_parameter("zero_vel_epsilon", 0.03);
   this->declare_parameter("min_effective_vel", 0.0);
   this->declare_parameter("max_wheel_accel", 1.0);
@@ -30,6 +31,7 @@ SimDriveShapingNode::SimDriveShapingNode() : Node("sim_drive_shaping_node") {
   right_sign_ = invert_right_ ? -1.0 : 1.0;
   left_scale_ = this->get_parameter("left_scale").as_double();
   right_scale_ = this->get_parameter("right_scale").as_double();
+  gear_ratio_ = this->get_parameter("gear_ratio").as_double();
   zero_vel_epsilon_ = static_cast<float>(this->get_parameter("zero_vel_epsilon").as_double());
   min_effective_vel_ = static_cast<float>(this->get_parameter("min_effective_vel").as_double());
   max_wheel_accel_ = static_cast<float>(this->get_parameter("max_wheel_accel").as_double());
@@ -59,8 +61,8 @@ SimDriveShapingNode::SimDriveShapingNode() : Node("sim_drive_shaping_node") {
     std::bind(&SimDriveShapingNode::publish_loop, this));
 
   RCLCPP_INFO(get_logger(),
-    "Drive shaping node started: wheel_radius=%.4f, track_width=%.4f, rate=%d Hz",
-    wheel_radius_, track_width_, publish_rate_hz_);
+    "Drive shaping node started: wheel_radius=%.4f, track_width=%.4f, gear_ratio=%.1f:1, rate=%d Hz",
+    wheel_radius_, track_width_, gear_ratio_, publish_rate_hz_);
   RCLCPP_INFO(get_logger(),
     "Shaping: zero_vel_epsilon=%.4f, max_wheel_accel=%.4f, min_effective_vel=%.4f",
     zero_vel_epsilon_, max_wheel_accel_, min_effective_vel_);
@@ -114,19 +116,21 @@ void SimDriveShapingNode::publish_loop() {
   double linear_x = last_linear_x_;
   double angular_z = last_angular_z_;
 
-  // Differential drive inverse kinematics: m/s → turns/s
-  double v_left = (linear_x - angular_z * track_width_ / 2.0) / (wheel_radius_ * 2.0 * M_PI);
-  double v_right = (linear_x + angular_z * track_width_ / 2.0) / (wheel_radius_ * 2.0 * M_PI);
+  // Differential drive inverse kinematics: m/s → wheel turns/s → motor turns/s
+  double v_left_wheel = (linear_x - angular_z * track_width_ / 2.0) / (wheel_radius_ * 2.0 * M_PI);
+  double v_right_wheel = (linear_x + angular_z * track_width_ / 2.0) / (wheel_radius_ * 2.0 * M_PI);
+  double v_left = v_left_wheel * gear_ratio_;   // motor turns/s
+  double v_right = v_right_wheel * gear_ratio_;
 
-  // Apply per-wheel shaping (same logic as real odrive_can_node)
+  // Apply per-wheel shaping in motor turns/s (same logic as real odrive_can_node)
   float left_shaped = apply_wheel_shaping(
     static_cast<float>(v_left), prev_left_cmd_, left_sign_ * left_scale_);
   float right_shaped = apply_wheel_shaping(
     static_cast<float>(v_right), prev_right_cmd_, right_sign_ * right_scale_);
 
-  // Convert shaped turns/s back to body-frame Twist (m/s)
-  double wl = static_cast<double>(left_shaped) * wheel_radius_ * 2.0 * M_PI;
-  double wr = static_cast<double>(right_shaped) * wheel_radius_ * 2.0 * M_PI;
+  // Convert shaped motor turns/s back to body-frame Twist (m/s)
+  double wl = static_cast<double>(left_shaped) / gear_ratio_ * wheel_radius_ * 2.0 * M_PI;
+  double wr = static_cast<double>(right_shaped) / gear_ratio_ * wheel_radius_ * 2.0 * M_PI;
   out.linear.x = (wl + wr) / 2.0;
   out.angular.z = (wr - wl) / track_width_;
 

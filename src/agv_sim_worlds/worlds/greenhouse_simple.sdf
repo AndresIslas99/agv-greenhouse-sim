@@ -19,15 +19,15 @@
 
     <!-- ═══════════════ Physics ═══════════════ -->
     <physics name="default" type="dart">
-      <max_step_size>0.001</max_step_size>
+      <max_step_size>0.004</max_step_size>
       <real_time_factor>1.0</real_time_factor>
-      <real_time_update_rate>1000</real_time_update_rate>
+      <real_time_update_rate>250</real_time_update_rate>
     </physics>
 
     <!-- ═══════════════ Lighting ═══════════════ -->
     <!-- Main sun — brighter for greenhouse interior -->
     <light type="directional" name="sun">
-      <cast_shadows>true</cast_shadows>
+      <cast_shadows>false</cast_shadows>
       <pose>0 0 10 0 0 0</pose>
       <diffuse>1.0 1.0 0.95 1</diffuse>
       <specular>0.3 0.3 0.3 1</specular>
@@ -61,13 +61,13 @@
     <!-- ═══════════════ Ground Plane ═══════════════ -->
     <model name="ground_plane">
       <static>true</static>
-      <pose>15 0 0 0 0 0</pose>
+      <pose>5.5 0 0 0 0 0</pose>
       <link name="ground_link">
         <collision name="ground_collision">
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>34 19</size>
+              <size>49 19</size>
             </plane>
           </geometry>
         </collision>
@@ -75,7 +75,7 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>34 19</size>
+              <size>49 19</size>
             </plane>
           </geometry>
           <material>
@@ -88,14 +88,14 @@
       </link>
     </model>
 
-    <!-- ═══════════════ Greenhouse Walls (~30m x 15m) ═══════════════ -->
+    <!-- ═══════════════ Greenhouse Walls (~41m x 15m) ═══════════════ -->
     <!-- North wall -->
     <model name="wall_north">
       <static>true</static>
-      <pose>15 7.5 1.5 0 0 0</pose>
+      <pose>5.5 7.5 1.5 0 0 0</pose>
       <link name="wall_link">
-        <collision name="col"><geometry><box><size>30 0.2 3.0</size></box></geometry></collision>
-        <visual name="vis"><geometry><box><size>30 0.2 3.0</size></box></geometry>
+        <collision name="col"><geometry><box><size>45.0 0.2 3.0</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>45.0 0.2 3.0</size></box></geometry>
           <material>
             <ambient>0.85 0.88 0.85 0.85</ambient>
             <diffuse>0.9 0.93 0.9 0.85</diffuse>
@@ -109,10 +109,10 @@
     <!-- South wall -->
     <model name="wall_south">
       <static>true</static>
-      <pose>15 -7.5 1.5 0 0 0</pose>
+      <pose>5.5 -7.5 1.5 0 0 0</pose>
       <link name="wall_link">
-        <collision name="col"><geometry><box><size>30 0.2 3.0</size></box></geometry></collision>
-        <visual name="vis"><geometry><box><size>30 0.2 3.0</size></box></geometry>
+        <collision name="col"><geometry><box><size>45.0 0.2 3.0</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>45.0 0.2 3.0</size></box></geometry>
           <material>
             <ambient>0.85 0.88 0.85 0.85</ambient>
             <diffuse>0.9 0.93 0.9 0.85</diffuse>
@@ -123,10 +123,10 @@
       </link>
     </model>
 
-    <!-- West wall (entrance side) -->
+    <!-- West wall (close to rear crop row ends at x=-14) -->
     <model name="wall_west">
       <static>true</static>
-      <pose>0 0 1.5 0 0 0</pose>
+      <pose>-17.0 0 1.5 0 0 0</pose>
       <link name="wall_link">
         <collision name="col"><geometry><box><size>0.2 15 3.0</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>0.2 15 3.0</size></box></geometry>
@@ -140,10 +140,10 @@
       </link>
     </model>
 
-    <!-- East wall -->
+    <!-- East wall (close to crop row ends at x=26) -->
     <model name="wall_east">
       <static>true</static>
-      <pose>30 0 1.5 0 0 0</pose>
+      <pose>28.0 0 1.5 0 0 0</pose>
       <link name="wall_link">
         <collision name="col"><geometry><box><size>0.2 15 3.0</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>0.2 15 3.0</size></box></geometry>
@@ -269,7 +269,7 @@
     <!-- Row 1 -->
     <model name="crop_row_1">
       <static>true</static>
-      <pose>16 -5.5 0.75 0 0 0</pose>
+      <pose>17.5 -5.5 0.75 0 0 0</pose>
       <link name="row_link">
         <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
@@ -286,7 +286,7 @@
     <!-- Row 2 -->
     <model name="crop_row_2">
       <static>true</static>
-      <pose>16 -3.3 0.75 0 0 0</pose>
+      <pose>17.5 -3.3 0.75 0 0 0</pose>
       <link name="row_link">
         <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
@@ -303,7 +303,7 @@
     <!-- Row 3 -->
     <model name="crop_row_3">
       <static>true</static>
-      <pose>16 -1.1 0.75 0 0 0</pose>
+      <pose>17.5 -1.1 0.75 0 0 0</pose>
       <link name="row_link">
         <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
@@ -320,7 +320,7 @@
     <!-- Row 4 -->
     <model name="crop_row_4">
       <static>true</static>
-      <pose>16 1.1 0.75 0 0 0</pose>
+      <pose>17.5 1.1 0.75 0 0 0</pose>
       <link name="row_link">
         <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
@@ -337,7 +337,7 @@
     <!-- Row 5 -->
     <model name="crop_row_5">
       <static>true</static>
-      <pose>16 3.3 0.75 0 0 0</pose>
+      <pose>17.5 3.3 0.75 0 0 0</pose>
       <link name="row_link">
         <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
@@ -354,7 +354,7 @@
     <!-- Row 6 -->
     <model name="crop_row_6">
       <static>true</static>
-      <pose>16 5.5 0.75 0 0 0</pose>
+      <pose>17.5 5.5 0.75 0 0 0</pose>
       <link name="row_link">
         <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
@@ -362,6 +362,91 @@
             <ambient>0.04 0.22 0.03 1</ambient>
             <diffuse>0.07 0.30 0.04 1</diffuse>
             <specular>0.02 0.04 0.02 1</specular>
+            <pbr><metal><albedo_map>model://textures/crop_leaves_alt.png</albedo_map><metalness>0.0</metalness><roughness>0.90</roughness></metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════ Rear Crop Rows (mirrored, x=-14 to x=6) ═══════════════ -->
+    <model name="crop_row_r1">
+      <static>true</static>
+      <pose>-6.5 -5.5 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material>
+            <ambient>0.05 0.25 0.03 1</ambient><diffuse>0.08 0.35 0.05 1</diffuse><specular>0.02 0.05 0.02 1</specular>
+            <pbr><metal><albedo_map>model://textures/crop_leaves.png</albedo_map><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="crop_row_r2">
+      <static>true</static>
+      <pose>-6.5 -3.3 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material>
+            <ambient>0.04 0.22 0.03 1</ambient><diffuse>0.07 0.30 0.04 1</diffuse><specular>0.02 0.04 0.02 1</specular>
+            <pbr><metal><albedo_map>model://textures/crop_leaves_alt.png</albedo_map><metalness>0.0</metalness><roughness>0.90</roughness></metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="crop_row_r3">
+      <static>true</static>
+      <pose>-6.5 -1.1 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material>
+            <ambient>0.05 0.25 0.03 1</ambient><diffuse>0.08 0.35 0.05 1</diffuse><specular>0.02 0.05 0.02 1</specular>
+            <pbr><metal><albedo_map>model://textures/crop_leaves.png</albedo_map><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="crop_row_r4">
+      <static>true</static>
+      <pose>-6.5 1.1 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material>
+            <ambient>0.04 0.22 0.03 1</ambient><diffuse>0.07 0.30 0.04 1</diffuse><specular>0.02 0.04 0.02 1</specular>
+            <pbr><metal><albedo_map>model://textures/crop_leaves_alt.png</albedo_map><metalness>0.0</metalness><roughness>0.90</roughness></metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="crop_row_r5">
+      <static>true</static>
+      <pose>-6.5 3.3 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material>
+            <ambient>0.05 0.25 0.03 1</ambient><diffuse>0.08 0.35 0.05 1</diffuse><specular>0.02 0.05 0.02 1</specular>
+            <pbr><metal><albedo_map>model://textures/crop_leaves.png</albedo_map><metalness>0.0</metalness><roughness>0.88</roughness></metal></pbr>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="crop_row_r6">
+      <static>true</static>
+      <pose>-6.5 5.5 0.75 0 0 0</pose>
+      <link name="row_link">
+        <collision name="col"><geometry><box><size>20 1.0 1.5</size></box></geometry></collision>
+        <visual name="vis"><geometry><box><size>20 1.0 1.5</size></box></geometry>
+          <material>
+            <ambient>0.04 0.22 0.03 1</ambient><diffuse>0.07 0.30 0.04 1</diffuse><specular>0.02 0.04 0.02 1</specular>
             <pbr><metal><albedo_map>model://textures/crop_leaves_alt.png</albedo_map><metalness>0.0</metalness><roughness>0.90</roughness></metal></pbr>
           </material>
         </visual>
@@ -424,7 +509,7 @@
     <!-- Aisle 1-2 (Y = -4.4) -->
     <model name="heating_rail_1_2_left">
       <static>true</static>
-      <pose>16.0 -4.625 0.0255 0 1.5708 0</pose>
+      <pose>17.5 -4.625 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -440,7 +525,7 @@
 
     <model name="heating_rail_1_2_right">
       <static>true</static>
-      <pose>16.0 -4.175 0.0255 0 1.5708 0</pose>
+      <pose>17.5 -4.175 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -457,7 +542,7 @@
     <!-- Aisle 2-3 (Y = -2.2) -->
     <model name="heating_rail_2_3_left">
       <static>true</static>
-      <pose>16.0 -2.425 0.0255 0 1.5708 0</pose>
+      <pose>17.5 -2.425 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -473,7 +558,7 @@
 
     <model name="heating_rail_2_3_right">
       <static>true</static>
-      <pose>16.0 -1.975 0.0255 0 1.5708 0</pose>
+      <pose>17.5 -1.975 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -490,7 +575,7 @@
     <!-- Aisle 3-4 (Y = 0.0) -->
     <model name="heating_rail_3_4_left">
       <static>true</static>
-      <pose>16.0 -0.225 0.0255 0 1.5708 0</pose>
+      <pose>17.5 -0.225 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -506,7 +591,7 @@
 
     <model name="heating_rail_3_4_right">
       <static>true</static>
-      <pose>16.0 0.225 0.0255 0 1.5708 0</pose>
+      <pose>17.5 0.225 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -523,7 +608,7 @@
     <!-- Aisle 4-5 (Y = 2.2) -->
     <model name="heating_rail_4_5_left">
       <static>true</static>
-      <pose>16.0 1.975 0.0255 0 1.5708 0</pose>
+      <pose>17.5 1.975 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -539,7 +624,7 @@
 
     <model name="heating_rail_4_5_right">
       <static>true</static>
-      <pose>16.0 2.425 0.0255 0 1.5708 0</pose>
+      <pose>17.5 2.425 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -556,7 +641,7 @@
     <!-- Aisle 5-6 (Y = 4.4) -->
     <model name="heating_rail_5_6_left">
       <static>true</static>
-      <pose>16.0 4.175 0.0255 0 1.5708 0</pose>
+      <pose>17.5 4.175 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -572,7 +657,7 @@
 
     <model name="heating_rail_5_6_right">
       <static>true</static>
-      <pose>16.0 4.625 0.0255 0 1.5708 0</pose>
+      <pose>17.5 4.625 0.0255 0 1.5708 0</pose>
       <link name="rail_link">
         <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
         <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
@@ -586,51 +671,312 @@
       </link>
     </model>
 
-    <!-- ═══════════════ AprilTag Markers ═══════════════ -->
-    <!-- Tags are vertical (pitch rotation) at Z=0.25m (camera height) -->
-    <!-- Using real tag36h11 textured models with PBR materials -->
+    <!-- ═══════════════ Rear Heating Pipe Rails (mirrored, center x=-4) ═══════════════ -->
+    <model name="heating_rail_r1_2_left">
+      <static>true</static>
+      <pose>-6.5 -4.625 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r1_2_right">
+      <static>true</static>
+      <pose>-6.5 -4.175 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r2_3_left">
+      <static>true</static>
+      <pose>-6.5 -2.425 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r2_3_right">
+      <static>true</static>
+      <pose>-6.5 -1.975 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r3_4_left">
+      <static>true</static>
+      <pose>-6.5 -0.225 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r3_4_right">
+      <static>true</static>
+      <pose>-6.5 0.225 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r4_5_left">
+      <static>true</static>
+      <pose>-6.5 1.975 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r4_5_right">
+      <static>true</static>
+      <pose>-6.5 2.425 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r5_6_left">
+      <static>true</static>
+      <pose>-6.5 4.175 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
+    <model name="heating_rail_r5_6_right">
+      <static>true</static>
+      <pose>-6.5 4.625 0.0255 0 1.5708 0</pose>
+      <link name="rail_link">
+        <collision name="col"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry></collision>
+        <visual name="vis"><geometry><cylinder><radius>0.0255</radius><length>20.0</length></cylinder></geometry>
+          <material><ambient>0.55 0.55 0.58 1</ambient><diffuse>0.65 0.65 0.70 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+            <pbr><metal><albedo_map>model://textures/rail_steel.png</albedo_map><metalness>0.3</metalness><roughness>0.65</roughness></metal></pbr></material>
+        </visual>
+      </link>
+    </model>
 
-    <!-- Tag 0: West corridor end, facing +X -->
+    <!-- ═══════════════ AprilTag Markers (tag36h11 family) ═══════════════ -->
+    <!-- Wall-mounted: vertical on wall surface, at camera height z=0.145m -->
+    <!-- Aisle ground: lying flat face-up on floor -->
+    <!-- Row-start: vertical on start face of each crop row -->
+
+    <!-- ── Wall-mounted tags ── -->
+    <!-- Tag 0: West wall, center — facing +X (into greenhouse) -->
     <include>
       <uri>model://apriltag_0</uri>
       <name>apriltag_0</name>
-      <pose>1.0 0.0 0.25 0 1.5708 0</pose>
+      <pose>-16.88 0.0 0.145 0 1.5708 0</pose>
     </include>
 
-    <!-- Tag 1: East corridor end, facing -X -->
+    <!-- Tag 1: East wall, center — facing -X -->
     <include>
       <uri>model://apriltag_1</uri>
       <name>apriltag_1</name>
-      <pose>29.0 0.0 0.25 0 -1.5708 0</pose>
+      <pose>27.88 0.0 0.145 0 -1.5708 0</pose>
     </include>
 
-    <!-- Tag 2: Aisle 1-2 entrance, facing -X -->
+    <!-- Tag 14: North wall, center — facing -Y (south, into greenhouse) -->
     <include>
-      <uri>model://apriltag_2</uri>
-      <name>apriltag_2</name>
-      <pose>6.0 -4.4 0.25 0 -1.5708 0</pose>
+      <uri>model://apriltag_14</uri>
+      <name>apriltag_14</name>
+      <pose>15.0 7.38 0.145 1.5708 0 0</pose>
     </include>
 
-    <!-- Tag 3: Aisle 3-4 entrance, facing -X -->
+    <!-- Tag 15: South wall, center — facing +Y (north, into greenhouse) -->
     <include>
-      <uri>model://apriltag_3</uri>
-      <name>apriltag_3</name>
-      <pose>6.0 0.0 0.25 0 -1.5708 0</pose>
+      <uri>model://apriltag_15</uri>
+      <name>apriltag_15</name>
+      <pose>15.0 -7.38 0.145 -1.5708 0 0</pose>
     </include>
 
-    <!-- Tag 4: Aisle 5-6 entrance, facing -X -->
-    <include>
-      <uri>model://apriltag_4</uri>
-      <name>apriltag_4</name>
-      <pose>6.0 4.4 0.25 0 -1.5708 0</pose>
-    </include>
-
-    <!-- Tag 5: Starting area, facing +X -->
+    <!-- Tag 5: West wall, south side — facing +X -->
     <include>
       <uri>model://apriltag_5</uri>
       <name>apriltag_5</name>
-      <pose>2.5 -5.0 0.25 0 1.5708 0</pose>
+      <pose>-16.88 -5.0 0.145 0 1.5708 0</pose>
     </include>
+
+    <!-- ── East wall tags (one per aisle, centered on rail pair, facing -X) ── -->
+    <!-- Tag 16: East wall, aisle 1-2 (y=-4.4) -->
+    <include>
+      <uri>model://apriltag_16</uri>
+      <name>apriltag_16</name>
+      <pose>27.88 -4.4 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 17: East wall, aisle 2-3 (y=-2.2) -->
+    <include>
+      <uri>model://apriltag_17</uri>
+      <name>apriltag_17</name>
+      <pose>27.88 -2.2 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 18: East wall, aisle 3-4 (y=0.0) -->
+    <include>
+      <uri>model://apriltag_18</uri>
+      <name>apriltag_18</name>
+      <pose>27.88 0.0 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 19: East wall, aisle 4-5 (y=2.2) -->
+    <include>
+      <uri>model://apriltag_19</uri>
+      <name>apriltag_19</name>
+      <pose>27.88 2.2 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 20: East wall, aisle 5-6 (y=4.4) -->
+    <include>
+      <uri>model://apriltag_20</uri>
+      <name>apriltag_20</name>
+      <pose>27.88 4.4 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- ── Aisle ground tags (lying flat, face up) ── -->
+    <!-- Tag 2: Aisle 1-2 (y=-4.4) -->
+    <include>
+      <uri>model://apriltag_2</uri>
+      <name>apriltag_2</name>
+      <pose>7.0 -4.4 0.002 0 0 0</pose>
+    </include>
+
+    <!-- Tag 3: Aisle 2-3 (y=-2.2) -->
+    <include>
+      <uri>model://apriltag_3</uri>
+      <name>apriltag_3</name>
+      <pose>7.0 -2.2 0.002 0 0 0</pose>
+    </include>
+
+    <!-- Tag 4: Aisle 3-4 (y=0.0) -->
+    <include>
+      <uri>model://apriltag_4</uri>
+      <name>apriltag_4</name>
+      <pose>7.0 0.0 0.002 0 0 0</pose>
+    </include>
+
+    <!-- Tag 12: Aisle 4-5 (y=2.2) -->
+    <include>
+      <uri>model://apriltag_12</uri>
+      <name>apriltag_12</name>
+      <pose>7.0 2.2 0.002 0 0 0</pose>
+    </include>
+
+    <!-- Tag 13: Aisle 5-6 (y=4.4) -->
+    <include>
+      <uri>model://apriltag_13</uri>
+      <name>apriltag_13</name>
+      <pose>7.0 4.4 0.002 0 0 0</pose>
+    </include>
+
+    <!-- ── Row-start tags (vertical at near end x=6, facing -X toward robot) ── -->
+    <!-- Tag 6: Start of row 1 (y=-5.5) -->
+    <include>
+      <uri>model://apriltag_6</uri>
+      <name>apriltag_6</name>
+      <pose>7.4 -5.5 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 7: Start of row 2 (y=-3.3) -->
+    <include>
+      <uri>model://apriltag_7</uri>
+      <name>apriltag_7</name>
+      <pose>7.4 -3.3 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 8: Start of row 3 (y=-1.1) -->
+    <include>
+      <uri>model://apriltag_8</uri>
+      <name>apriltag_8</name>
+      <pose>7.4 -1.1 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 9: Start of row 4 (y=1.1) -->
+    <include>
+      <uri>model://apriltag_9</uri>
+      <name>apriltag_9</name>
+      <pose>7.4 1.1 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 10: Start of row 5 (y=3.3) -->
+    <include>
+      <uri>model://apriltag_10</uri>
+      <name>apriltag_10</name>
+      <pose>7.4 3.3 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- Tag 11: Start of row 6 (y=5.5) -->
+    <include>
+      <uri>model://apriltag_11</uri>
+      <name>apriltag_11</name>
+      <pose>7.4 5.5 0.145 0 -1.5708 0</pose>
+    </include>
+
+    <!-- ── Rear section tags ── -->
+    <!-- West wall tags (one per aisle, facing +X) -->
+    <include><uri>model://apriltag_21</uri><name>apriltag_21</name>
+      <pose>-16.88 -4.4 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_22</uri><name>apriltag_22</name>
+      <pose>-16.88 -2.2 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_23</uri><name>apriltag_23</name>
+      <pose>-16.88 0.0 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_24</uri><name>apriltag_24</name>
+      <pose>-16.88 2.2 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_25</uri><name>apriltag_25</name>
+      <pose>-16.88 4.4 0.145 0 1.5708 0</pose></include>
+
+    <!-- Rear row-start tags (at x=6.1, facing +X into rear section) -->
+    <include><uri>model://apriltag_26</uri><name>apriltag_26</name>
+      <pose>3.6 -5.5 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_27</uri><name>apriltag_27</name>
+      <pose>3.6 -3.3 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_28</uri><name>apriltag_28</name>
+      <pose>3.6 -1.1 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_29</uri><name>apriltag_29</name>
+      <pose>3.6 1.1 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_30</uri><name>apriltag_30</name>
+      <pose>3.6 3.3 0.145 0 1.5708 0</pose></include>
+    <include><uri>model://apriltag_31</uri><name>apriltag_31</name>
+      <pose>3.6 5.5 0.145 0 1.5708 0</pose></include>
+
+    <!-- ── Rear aisle ground tags (lying flat at start of rear aisles) ── -->
+    <include><uri>model://apriltag_33</uri><name>apriltag_33</name>
+      <pose>4.0 -4.4 0.002 0 0 0</pose></include>
+    <include><uri>model://apriltag_34</uri><name>apriltag_34</name>
+      <pose>4.0 -2.2 0.002 0 0 0</pose></include>
+    <include><uri>model://apriltag_35</uri><name>apriltag_35</name>
+      <pose>4.0 0.0 0.002 0 0 0</pose></include>
+    <include><uri>model://apriltag_36</uri><name>apriltag_36</name>
+      <pose>4.0 2.2 0.002 0 0 0</pose></include>
+    <include><uri>model://apriltag_37</uri><name>apriltag_37</name>
+      <pose>4.0 4.4 0.002 0 0 0</pose></include>
 
   </world>
 </sdf>

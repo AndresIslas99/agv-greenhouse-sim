@@ -29,41 +29,36 @@
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
 
-# Left depth camera — bridge BASE topic to trigger HasConnections() on sensor
-# The depth_camera sensor publishes RGB+depth on the base topic
-- ros_topic_name: "/zed/zed_node/depth/depth_registered"
-  gz_topic_name: "/zed_left"
+# ZED 2i Left RGB image (rgbd_camera publishes RGB on /image sub-topic)
+- ros_topic_name: "/zed/zed_node/left/image_rect_color"
+  gz_topic_name: "/zed_left/image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
-# Camera info — sensor publishes on /camera_info (not namespaced to sensor topic)
+# ZED 2i depth image
+- ros_topic_name: "/zed/zed_node/depth/depth_registered"
+  gz_topic_name: "/zed_left/depth_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Camera info (rgbd_camera publishes on /zed_left/camera_info, not global /camera_info)
 - ros_topic_name: "/zed/zed_node/left/camera_info"
-  gz_topic_name: "/camera_info"
+  gz_topic_name: "/zed_left/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
 
-# Point cloud (Gz -> ROS)
+# Point cloud (for pointcloud_to_laserscan → /agv/scan)
 - ros_topic_name: "/zed/zed_node/point_cloud/cloud_registered"
   gz_topic_name: "/zed_left/points"
   ros_type_name: "sensor_msgs/msg/PointCloud2"
   gz_type_name: "gz.msgs.PointCloudPacked"
   direction: GZ_TO_ROS
 
-# Right camera — bridge BASE topic to trigger HasConnections()
-- ros_topic_name: "/zed/zed_node/right/image_rect_color"
-  gz_topic_name: "/zed_right"
-  ros_type_name: "sensor_msgs/msg/Image"
-  gz_type_name: "gz.msgs.Image"
-  direction: GZ_TO_ROS
-
-# Right camera info — same /camera_info topic (shared by both cameras)
-- ros_topic_name: "/zed/zed_node/right/camera_info"
-  gz_topic_name: "/camera_info"
-  ros_type_name: "sensor_msgs/msg/CameraInfo"
-  gz_type_name: "gz.msgs.CameraInfo"
-  direction: GZ_TO_ROS
+# No right camera — real ZED does stereo internally, sim depth_camera does the same.
+# AprilTag detection uses the LEFT image, not right.
 
 # IMU (Gz -> ROS) — real ZED 2i SDK path (for production EKF config)
 - ros_topic_name: "/zed/zed_node/imu/data"

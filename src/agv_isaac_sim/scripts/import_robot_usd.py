@@ -29,11 +29,14 @@ simulation_app = SimulationApp({"headless": True})
 
 import omni.usd
 import omni.kit.commands
-from pxr import Usd, UsdGeom, UsdPhysics, Sdf, Gf, PhysxSchema
+import omni.kit.app
+from pxr import Usd, UsdGeom, UsdPhysics, UsdShade, Sdf, Gf, PhysxSchema
 
-# Isaac Sim extensions
-import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.urdf import _urdf as urdf_importer
+# Enable URDF importer extension (renamed in Isaac Sim 4.5)
+ext_manager = omni.kit.app.get_app().get_extension_manager()
+ext_manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
+
+import isaacsim.core.utils.stage as stage_utils
 
 # Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -98,27 +101,29 @@ def import_urdf(urdf_path):
     """Import URDF into the current USD stage."""
     print("Importing URDF into Isaac Sim...")
 
-    # Configure URDF import settings
-    import_config = urdf_importer.ImportConfig()
+    # Configure URDF import settings via commands API (Isaac Sim 4.5+)
+    from isaacsim.asset.importer.urdf._urdf import UrdfJointTargetType
+    status, import_config = omni.kit.commands.execute("URDFCreateImportConfig")
     import_config.merge_fixed_joints = False  # Keep all frames for TF
     import_config.fix_base = False  # Robot should be free to move
     import_config.import_inertia_tensor = True
-    import_config.default_drive_type = 1  # Velocity drive for wheels
+    import_config.default_drive_type = UrdfJointTargetType.JOINT_DRIVE_VELOCITY
     import_config.default_drive_strength = 1e4
     import_config.default_position_drive_damping = 1e3
     import_config.create_physics_scene = False  # World has its own
 
-    # Import
-    result = urdf_importer.import_robot(
-        urdf_path,
-        import_config,
-        "/Robot")
+    # Import via commands
+    status, result = omni.kit.commands.execute(
+        "URDFParseAndImportFile",
+        urdf_path=urdf_path,
+        import_config=import_config,
+    )
 
     if not result:
         raise RuntimeError("URDF import failed")
 
-    print("URDF imported as /Robot")
-    return "/Robot"
+    print(f"URDF imported at: {result}")
+    return result
 
 
 def setup_diff_drive_controller(stage, robot_path):
@@ -142,9 +147,9 @@ def setup_diff_drive_controller(stage, robot_path):
         {
             keys.CREATE_NODES: [
                 ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
-                ("SubscribeTwist", "omni.isaac.ros2_bridge.ROS2SubscribeTwist"),
-                ("DiffController", "omni.isaac.wheeled_robots.DifferentialController"),
-                ("ArticulationController", "omni.isaac.core_nodes.IsaacArticulationController"),
+                ("SubscribeTwist", "isaacsim.ros2.bridge.ROS2SubscribeTwist"),
+                ("DiffController", "isaacsim.robot.wheeled_robots.DifferentialController"),
+                ("ArticulationController", "isaacsim.core.nodes.IsaacArticulationController"),
             ],
             keys.SET_VALUES: [
                 ("SubscribeTwist.inputs:topicName", TOPICS["cmd_vel"]),
@@ -158,7 +163,7 @@ def setup_diff_drive_controller(stage, robot_path):
                 ("SubscribeTwist.outputs:execOut", "DiffController.inputs:execIn"),
                 ("SubscribeTwist.outputs:linearVelocity", "DiffController.inputs:linearVelocity"),
                 ("SubscribeTwist.outputs:angularVelocity", "DiffController.inputs:angularVelocity"),
-                ("DiffController.outputs:execOut", "ArticulationController.inputs:execIn"),
+                ("SubscribeTwist.outputs:execOut", "ArticulationController.inputs:execIn"),
                 ("DiffController.outputs:velocityCommand", "ArticulationController.inputs:velocityCommand"),
             ],
         }
@@ -179,9 +184,9 @@ def setup_odometry_publisher(stage, robot_path):
         {
             keys.CREATE_NODES: [
                 ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
-                ("ComputeOdom", "omni.isaac.core_nodes.IsaacComputeOdometry"),
-                ("PublishOdom", "omni.isaac.ros2_bridge.ROS2PublishOdometry"),
-                ("PublishTF", "omni.isaac.ros2_bridge.ROS2PublishTransformTree"),
+                ("ComputeOdom", "isaacsim.core.nodes.IsaacComputeOdometry"),
+                ("PublishOdom", "isaacsim.ros2.bridge.ROS2PublishOdometry"),
+                ("PublishTF", "isaacsim.ros2.bridge.ROS2PublishTransformTree"),
             ],
             keys.SET_VALUES: [
                 ("ComputeOdom.inputs:chassisPrim", robot_path),
@@ -217,8 +222,8 @@ def setup_joint_state_publisher(stage, robot_path):
         {
             keys.CREATE_NODES: [
                 ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
-                ("ReadJoints", "omni.isaac.core_nodes.IsaacReadJointState"),
-                ("PublishJointStates", "omni.isaac.ros2_bridge.ROS2PublishJointState"),
+                ("ReadJoints", "isaacsim.core.nodes.IsaacReadJointState"),
+                ("PublishJointStates", "isaacsim.ros2.bridge.ROS2PublishJointState"),
             ],
             keys.SET_VALUES: [
                 ("ReadJoints.inputs:prim", robot_path),
@@ -259,8 +264,8 @@ def setup_camera(stage, robot_path, cam_name, parent_link, frame_id, topics, ena
     # Create OmniGraph for ROS 2 publishing
     node_list = [
         ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
-        ("IsaacCreateRenderProduct", "omni.isaac.core_nodes.IsaacCreateRenderProduct"),
-        ("PublishRGB", "omni.isaac.ros2_bridge.ROS2CameraHelper"),
+        ("IsaacCreateRenderProduct", "isaacsim.core.nodes.IsaacCreateRenderProduct"),
+        ("PublishRGB", "isaacsim.ros2.bridge.ROS2CameraHelper"),
     ]
     set_values = [
         ("IsaacCreateRenderProduct.inputs:cameraPrim", cam_prim_path),
@@ -277,7 +282,7 @@ def setup_camera(stage, robot_path, cam_name, parent_link, frame_id, topics, ena
     ]
 
     # Camera info publisher
-    node_list.append(("PublishCameraInfo", "omni.isaac.ros2_bridge.ROS2CameraHelper"))
+    node_list.append(("PublishCameraInfo", "isaacsim.ros2.bridge.ROS2CameraHelper"))
     set_values.extend([
         ("PublishCameraInfo.inputs:topicName", topics["camera_info"]),
         ("PublishCameraInfo.inputs:frameId", frame_id),
@@ -292,7 +297,7 @@ def setup_camera(stage, robot_path, cam_name, parent_link, frame_id, topics, ena
 
     if enable_depth:
         # Depth publisher
-        node_list.append(("PublishDepth", "omni.isaac.ros2_bridge.ROS2CameraHelper"))
+        node_list.append(("PublishDepth", "isaacsim.ros2.bridge.ROS2CameraHelper"))
         set_values.extend([
             ("PublishDepth.inputs:topicName", topics["depth"]),
             ("PublishDepth.inputs:frameId", frame_id),
@@ -306,7 +311,7 @@ def setup_camera(stage, robot_path, cam_name, parent_link, frame_id, topics, ena
 
         # Point cloud publisher
         if "pointcloud" in topics:
-            node_list.append(("PublishPC", "omni.isaac.ros2_bridge.ROS2CameraHelper"))
+            node_list.append(("PublishPC", "isaacsim.ros2.bridge.ROS2CameraHelper"))
             set_values.extend([
                 ("PublishPC.inputs:topicName", topics["pointcloud"]),
                 ("PublishPC.inputs:frameId", frame_id),
@@ -346,8 +351,8 @@ def setup_imu(stage, robot_path):
         {
             keys.CREATE_NODES: [
                 ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
-                ("IsaacReadIMU", "omni.isaac.sensor.IsaacReadIMU"),
-                ("PublishIMU", "omni.isaac.ros2_bridge.ROS2PublishImu"),
+                ("IsaacReadIMU", "isaacsim.sensors.physics.IsaacReadIMU"),
+                ("PublishIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
             ],
             keys.SET_VALUES: [
                 ("IsaacReadIMU.inputs:imuPrim", imu_prim_path),
@@ -407,41 +412,12 @@ def main():
     stage = omni.usd.get_context().get_stage()
     robot_path = import_urdf(urdf_path)
 
-    # Step 3: Configure actuators and sensors
-    setup_diff_drive_controller(stage, robot_path)
-    setup_odometry_publisher(stage, robot_path)
-    setup_joint_state_publisher(stage, robot_path)
-
-    # Left camera (depth + RGB + point cloud)
-    setup_camera(stage, robot_path,
-                 cam_name="ZedLeftCamera",
-                 parent_link="zed_left_camera_frame",
-                 frame_id="zed_left_camera_frame_optical",
-                 topics={
-                     "rgb": TOPICS["left_rgb"],
-                     "depth": TOPICS["left_depth"],
-                     "camera_info": TOPICS["left_camera_info"],
-                     "pointcloud": TOPICS["left_pointcloud"],
-                 },
-                 enable_depth=True)
-
-    # Right camera (RGB only)
-    setup_camera(stage, robot_path,
-                 cam_name="ZedRightCamera",
-                 parent_link="zed_right_camera_frame",
-                 frame_id="zed_right_camera_frame_optical",
-                 topics={
-                     "rgb": TOPICS["right_rgb"],
-                     "camera_info": TOPICS["right_camera_info"],
-                 },
-                 enable_depth=False)
-
-    # IMU
-    setup_imu(stage, robot_path)
-
-    # Physics materials
-    from pxr import UsdShade
+    # Step 3: Physics materials
     setup_physics_materials(stage, robot_path)
+
+    # OmniGraph (diff-drive, odometry, cameras, IMU) is configured at
+    # runtime by setup_omnigraph.py because the ROS 2 bridge extension
+    # requires the full Isaac Sim application with ROS 2 middleware.
 
     # Step 4: Save
     stage.GetRootLayer().Export(OUTPUT_PATH)

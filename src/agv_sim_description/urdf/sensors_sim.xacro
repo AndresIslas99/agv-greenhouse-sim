@@ -157,22 +157,31 @@
   </joint>
 
   <!-- ═══════════════════════════════════════════════════════ -->
-  <!--  Left Camera Sensor (RGB + Depth + PointCloud)          -->
-  <!--  Gz Transport topics bridged to ROS via ros_gz_bridge   -->
+  <!--  ZED 2i Left Sensor (RGB + Depth + PointCloud)          -->
+  <!--  rgbd_camera = single render pass for all three outputs -->
+  <!--  Matches real ZED: one device → RGB, depth, point cloud -->
   <!-- ═══════════════════════════════════════════════════════ -->
   <gazebo reference="zed_left_camera_frame">
-    <sensor type="depth_camera" name="zed_left_depth">
+    <sensor type="rgbd_camera" name="zed_left_rgbd">
       <always_on>true</always_on>
       <update_rate>15</update_rate>
       <topic>/zed_left</topic>
-      <gz_frame_id>zed_left_camera_frame_optical</gz_frame_id>
+      <!-- Gz Harmonic publishes point cloud in parent link frame (X forward),
+           NOT optical convention (Z forward). Use link frame so TF matches data. -->
+      <gz_frame_id>zed_left_camera_frame</gz_frame_id>
       <camera>
         <horizontal_fov>1.9199</horizontal_fov>
         <image>
-          <width>1280</width>
-          <height>720</height>
+          <width>640</width>
+          <height>360</height>
           <format>R8G8B8</format>
         </image>
+        <depth_camera>
+          <clip>
+            <near>0.3</near>
+            <far>20.0</far>
+          </clip>
+        </depth_camera>
         <clip>
           <near>0.3</near>
           <far>20.0</far>
@@ -186,34 +195,9 @@
     </sensor>
   </gazebo>
 
-  <!-- ═══════════════════════════════════════════════════════ -->
-  <!--  Right Camera Sensor (RGB only)                         -->
-  <!-- ═══════════════════════════════════════════════════════ -->
-  <gazebo reference="zed_right_camera_frame">
-    <sensor type="camera" name="zed_right_camera">
-      <always_on>true</always_on>
-      <update_rate>15</update_rate>
-      <topic>/zed_right</topic>
-      <gz_frame_id>zed_right_camera_frame_optical</gz_frame_id>
-      <camera>
-        <horizontal_fov>1.9199</horizontal_fov>
-        <image>
-          <width>1280</width>
-          <height>720</height>
-          <format>R8G8B8</format>
-        </image>
-        <clip>
-          <near>0.3</near>
-          <far>20.0</far>
-        </clip>
-        <noise>
-          <type>gaussian</type>
-          <mean>0.0</mean>
-          <stddev>0.007</stddev>
-        </noise>
-      </camera>
-    </sensor>
-  </gazebo>
+  <!-- Right camera sensor removed — depth_camera (left) already provides
+       RGB + depth + point cloud. The real ZED 2i is one device; no need
+       for a separate Gz render pass for the right lens in HIL mode. -->
 
   <!-- ═══════════════════════════════════════════════════════ -->
   <!--  ZED 2i IMU — 100Hz matching real ZED SDK publish rate   -->
