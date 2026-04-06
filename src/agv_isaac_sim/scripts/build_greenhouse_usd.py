@@ -61,13 +61,62 @@ def build_greenhouse(stage, cfg):
     create_lighting(stage, cfg)
 
 
+def validate_textures(cfg):
+    """Check all referenced textures exist before building."""
+    print("\nValidating textures:")
+    all_ok = True
+
+    # Collect all texture references from config
+    textures = []
+    for section in ["ground", "walls", "rails", "obstacles"]:
+        mat = cfg[section].get("material", {})
+        if mat.get("texture"):
+            textures.append(("textures", mat["texture"]))
+
+    for mat in cfg["crop_rows"].get("materials", []):
+        if mat.get("texture"):
+            textures.append(("textures", mat["texture"]))
+
+    beam_mat = cfg["roof_beams"].get("material", {})
+    if beam_mat.get("texture"):
+        textures.append(("textures", beam_mat["texture"]))
+
+    for tag_cfg in cfg["apriltags"]["tags"]:
+        textures.append(("tags", f"tag36h11_id{tag_cfg['id']}.png"))
+
+    for kind, filename in textures:
+        if kind == "textures":
+            path = os.path.join(cfg["_textures_dir"], filename)
+        else:
+            path = os.path.join(cfg["_tag_textures_dir"], filename)
+
+        exists = os.path.exists(path)
+        status = "OK" if exists else "MISSING"
+        print(f"  [{status}] {filename} -> {path}")
+        if not exists:
+            all_ok = False
+
+    if not all_ok:
+        print("\n  WARNING: Some textures are missing! USD will use magenta fallback.")
+        print(f"  Texture dir: {cfg['_textures_dir']}")
+        print(f"  Tag tex dir: {cfg['_tag_textures_dir']}")
+    else:
+        print(f"  All {len(textures)} textures found.")
+
+    return all_ok
+
+
 def main():
     cfg = load_world_config()
     output = cfg["_output_path"]
 
     print(f"Building greenhouse USD world...")
-    print(f"  Config:   {cfg['_textures_dir']}")
+    print(f"  Src dir:  {cfg['_src_dir']}")
+    print(f"  Textures: {cfg['_textures_dir']}")
+    print(f"  Tags:     {cfg['_tag_textures_dir']}")
     print(f"  Output:   {output}")
+
+    validate_textures(cfg)
 
     stage = Usd.Stage.CreateNew(output)
     build_greenhouse(stage, cfg)
