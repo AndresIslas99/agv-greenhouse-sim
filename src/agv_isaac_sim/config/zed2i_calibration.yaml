@@ -1,0 +1,25 @@
+# ZED 2i camera calibration parameters (typical factory values)
+#
+# These are representative values for ZED 2i at 1280×720.
+# For your specific camera, replace with values from:
+#   ZED SDK: sl::CalibrationParameters or ZED Explorer app
+#
+# Distortion model: Brown-Conrady (plumb_bob in ROS convention)
+
+camera:
+  width: 1280
+  height: 720
+  distortion_model: "plumb_bob"
+
+  # Distortion coefficients [k1, k2, p1, p2, k3]
+  # ZED 2i has mild barrel distortion from 110° wide-angle lens
+  D: [-0.0425, 0.0105, 0.0, 0.0, 0.0]
+
+  # Camera intrinsic matrix (3×3, row-major)
+  # fx = fy ≈ 527.5 for 1280×720 at 110° hFOV
+  K: [527.5, 0.0, 640.0,
+      0.0, 527.5, 360.0,
+      0.0, 0.0, 1.0]
+
+  # Stereo baseline (meters) — ZED 2i = 120mm
+  baseline: 0.12

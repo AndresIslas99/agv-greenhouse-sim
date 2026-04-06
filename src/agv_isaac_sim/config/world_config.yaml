@@ -1,0 +1,140 @@
+# Greenhouse world geometry configuration for Isaac Sim USD builder.
+# All positions in meters, angles in degrees.
+#
+# This file is the single source of truth for the greenhouse layout.
+# Modify here to change dimensions, add tags, move obstacles, etc.
+
+textures:
+  base_dir: "agv_sim_worlds/models/textures"
+  tag_dir: "agv_sim_worlds/materials/textures"
+
+physics:
+  timestep_hz: 1000
+  solver_iterations: 12        # 4 was too low; 12 for stable contact in cluttered greenhouse
+  gpu_broadphase: true
+  gpu_dynamics: true
+  gpu_max_contacts: 524288
+  gravity: [0.0, 0.0, -9.81]
+
+ground:
+  size: [34.0, 19.0, 0.1]
+  position: [15.0, 0.0, -0.05]
+  slope_percent: 0.5             # 0.5% longitudinal drainage slope (real greenhouse)
+  material: {texture: "ground_soil.png", roughness: 0.95, metallic: 0.0}
+
+walls:
+  height: 3.0
+  thickness: 0.2
+  material: {texture: "wall_polycarbonate.png", roughness: 0.85, metallic: 0.0}
+  specs:
+    - {name: North, position: [15.0, 7.5, 1.5], size: [30.0, 0.2, 3.0]}
+    - {name: South, position: [15.0, -7.5, 1.5], size: [30.0, 0.2, 3.0]}
+    - {name: West,  position: [0.0, 0.0, 1.5],   size: [0.2, 15.0, 3.0]}
+    - {name: East,  position: [30.0, 0.0, 1.5],   size: [0.2, 15.0, 3.0]}
+
+crop_rows:
+  length: 20.0
+  width: 1.0
+  height: 1.5
+  center_x: 16.0
+  y_positions: [-5.5, -3.3, -1.1, 1.1, 3.3, 5.5]
+  # Foliage simulation: rows are built from segments with gaps to simulate
+  # porous leaf canopy. This gives realistic depth camera returns (not flat walls).
+  foliage:
+    segment_length: 0.8         # each plant segment along X
+    gap_length: 0.15            # gap between plants (air, visible to depth camera)
+    height_variation: 0.15      # ±random height variation per segment
+    width_variation: 0.05       # ±random width variation per segment
+  materials:
+    - {texture: "crop_leaves.png", roughness: 0.9, metallic: 0.0}
+    - {texture: "crop_leaves_alt.png", roughness: 0.9, metallic: 0.0}
+
+rails:
+  radius: 0.0255          # 51mm diameter / 2
+  length: 20.0
+  center_x: 16.0
+  pair_spacing: 0.45       # center-to-center within aisle
+  aisle_centers_y: [-4.4, -2.2, 0.0, 2.2, 4.4]
+  material: {texture: "rail_steel.png", roughness: 0.6, metallic: 0.3}
+
+roof_beams:
+  beam_size: 0.08
+  height: 3.0
+  transverse_x: [5.0, 10.0, 15.0, 20.0, 25.0]
+  transverse_span: 15.0
+  longitudinal_y: [-3.5, 3.5]
+  longitudinal_span: 30.0
+  longitudinal_center_x: 15.0
+  material: {texture: "", roughness: 0.4, metallic: 0.5}
+
+apriltags:
+  tag_size: 0.2            # face dimensions
+  border_size: 0.25        # backing plate dimensions
+  tag_thickness: 0.001
+  border_thickness: 0.005
+  family: "tag36h11"
+  # Tags are wall-mounted: flush against wall inner face or on mounting posts
+  # mount_type: wall_west | wall_east | post
+  tags:
+    - id: 0
+      description: "West wall, corridor center, facing +X"
+      mount_type: wall_west
+      position: [0.106, 0.0, 0.25]     # wall face + border_thickness + 1mm
+      yaw: 90.0
+    - id: 1
+      description: "East wall, corridor center, facing -X"
+      mount_type: wall_east
+      position: [29.894, 0.0, 0.25]
+      yaw: -90.0
+    - id: 2
+      description: "Aisle 1-2 west entrance, facing -X"
+      mount_type: post
+      position: [6.0, -4.4, 0.25]
+      yaw: -90.0
+    - id: 3
+      description: "Aisle 3-4 west entrance, facing -X"
+      mount_type: post
+      position: [6.0, 0.0, 0.25]
+      yaw: -90.0
+    - id: 4
+      description: "Aisle 5-6 west entrance, facing -X"
+      mount_type: post
+      position: [6.0, 4.4, 0.25]
+      yaw: -90.0
+    - id: 5
+      description: "Starting area, facing +X"
+      mount_type: post
+      position: [2.5, -5.0, 0.25]
+      yaw: 0.0
+
+obstacles:
+  material: {texture: "crate_wood.png", roughness: 0.85, metallic: 0.0}
+  crates:
+    - {name: Crate1, position: [3.5, -2.0, 0.15], size: [0.5, 0.4, 0.3], yaw: 17.2}
+    - {name: Crate2, position: [4.0, 3.5, 0.15], size: [0.5, 0.4, 0.3], yaw: -11.5}
+    - {name: Crate3, position: [25.0, 0.0, 0.15], size: [0.5, 0.4, 0.3], yaw: 28.6}
+
+lighting:
+  # Greenhouse lighting: diffuse through translucent polycarbonate roof.
+  # Real greenhouses have almost no hard shadows — light is scattered by
+  # ribbed polycarbonate panels. Sun reduced, dome increased to simulate.
+  sun:
+    intensity: 1200.0            # was 3000 — too directional for greenhouse
+    color: [1.0, 0.98, 0.92]    # warm daylight (5500K approximate)
+    angle: 1.0                   # wider sun disk = softer shadows
+    rotation: [-64.0, -27.0, 0.0]
+  fill:
+    intensity: 600.0
+    color: [0.45, 0.45, 0.48]   # cool fill for contrast
+    rotation: [-45.0, 30.0, 0.0]
+  ambient_dome:
+    intensity: 500.0             # was 200 — primary light source in greenhouse
+    color: [0.3, 0.3, 0.28]     # warm ambient from soil/leaf reflection
+
+  # Tier 2: Volumetric fog for humidity simulation
+  # Isaac Sim RTX supports volumetric particles. Enable when needed.
+  fog:
+    enabled: false               # set true to enable humidity fog
+    density: 0.02                # particles/m³ (light haze = 0.01, misting = 0.1)
+    color: [0.95, 0.95, 1.0]    # slightly blue-white water vapor
+    height_max: 2.0              # fog below 2m (where misting occurs)
