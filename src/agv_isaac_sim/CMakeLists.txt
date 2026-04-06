@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.8)
+project(agv_isaac_sim)
+
+find_package(ament_cmake REQUIRED)
+
+install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
+install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
+install(DIRECTORY worlds/ DESTINATION share/${PROJECT_NAME}/worlds)
+install(DIRECTORY robot/ DESTINATION share/${PROJECT_NAME}/robot)
+install(DIRECTORY materials/ DESTINATION share/${PROJECT_NAME}/materials)
+install(DIRECTORY extensions/ DESTINATION share/${PROJECT_NAME}/extensions)
+install(PROGRAMS scripts/build_greenhouse_usd.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/import_robot_usd.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/isaac_ros_bridge_node.py DESTINATION lib/${PROJECT_NAME})
+
+ament_package()
