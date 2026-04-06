@@ -40,11 +40,19 @@ class DepthNoiseNode(Node):
         self.declare_parameter('noise_scale', 0.005)
         self.declare_parameter('dropout_distance', 15.0)
         self.declare_parameter('dropout_rate', 0.3)
+        self.declare_parameter('fog_factor', 0.0)
 
         self.noise_base = self.get_parameter('noise_base').value
         self.noise_scale = self.get_parameter('noise_scale').value
         self.dropout_dist = self.get_parameter('dropout_distance').value
         self.dropout_rate = self.get_parameter('dropout_rate').value
+        self.fog_factor = self.get_parameter('fog_factor').value
+
+        # Apply fog: increases noise and dropout to simulate humidity
+        # fog_factor=0 → clear, 0.5 → light haze, 2.0 → heavy misting
+        self.effective_noise_scale = self.noise_scale * (1.0 + self.fog_factor)
+        self.effective_dropout_rate = min(
+            0.95, self.dropout_rate + self.fog_factor * 0.15)
 
         qos = QoSProfile(depth=5, reliability=ReliabilityPolicy.BEST_EFFORT)
 
@@ -55,7 +63,9 @@ class DepthNoiseNode(Node):
 
         self.get_logger().info(
             f'Depth noise: base={self.noise_base}m, scale={self.noise_scale}/m, '
-            f'dropout>{self.dropout_dist}m @{self.dropout_rate*100:.0f}%')
+            f'dropout>{self.dropout_dist}m @{self.dropout_rate*100:.0f}%, '
+            f'fog={self.fog_factor} (effective scale={self.effective_noise_scale:.4f}, '
+            f'dropout={self.effective_dropout_rate:.2f})')
 
     def _on_depth(self, msg: Image):
         # Decode depth image (32FC1 = float32, meters)
@@ -66,17 +76,17 @@ class DepthNoiseNode(Node):
         h, w = msg.height, msg.width
         depth = np.frombuffer(msg.data, dtype=np.float32).reshape(h, w).copy()
 
-        # Distance-dependent Gaussian noise: σ(d) = base + scale × d
+        # Distance-dependent Gaussian noise: σ(d) = base + effective_scale × d
         valid = np.isfinite(depth) & (depth > 0)
-        sigma = np.where(valid, self.noise_base + self.noise_scale * depth, 0.0)
+        sigma = np.where(valid, self.noise_base + self.effective_noise_scale * depth, 0.0)
         noise = np.random.normal(0.0, 1.0, depth.shape).astype(np.float32) * sigma
         depth[valid] += noise[valid]
 
         # Dropout simulation for far distances (ZED loses tracking beyond ~15m)
-        if self.dropout_rate > 0:
+        if self.effective_dropout_rate > 0:
             far_mask = valid & (depth > self.dropout_dist)
             dropout_mask = far_mask & (
-                np.random.random(depth.shape) < self.dropout_rate)
+                np.random.random(depth.shape) < self.effective_dropout_rate)
             depth[dropout_mask] = np.nan
 
         # Clamp negative depths
