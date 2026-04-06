@@ -1,18 +1,42 @@
-"""Greenhouse structural elements: ground, walls, crop rows, rails, roof beams."""
+"""Greenhouse structural elements: ground, walls, crop rows, rails, roof beams.
+
+Crop rows use a segmented plant model with stems and canopy to produce
+realistic depth camera returns (not flat walls). Each plant has:
+- A thin stem cylinder at the base
+- A wider canopy box at the top
+- Random height/width variation for visual diversity
+- Gaps between plants (air visible to depth camera)
+"""
 
 import random
 
-from pxr import UsdGeom, Gf
+from pxr import UsdGeom, UsdPhysics, UsdShade, Sdf, Gf
 
 from .primitives import create_box, create_cylinder
 
 
 def create_ground(stage, materials, cfg):
-    """Create the soil ground plane."""
+    """Create the soil ground plane with optional drainage slope.
+
+    Real greenhouses have 0.5-1.0% longitudinal slope for water runoff.
+    This causes subtle IMU tilt and odometry drift on the real robot.
+    """
     g = cfg["ground"]
-    create_box(stage, "/World/Ground",
-               size=g["size"], position=g["position"],
-               material=materials["soil"])
+    slope = g.get("slope_percent", 0.0)
+
+    if slope > 0:
+        # Sloped ground: rotate around Y axis
+        # 0.5% slope = atan(0.005) ≈ 0.286 degrees
+        import math
+        slope_deg = math.degrees(math.atan(slope / 100.0))
+        create_box(stage, "/World/Ground",
+                   size=g["size"], position=g["position"],
+                   rotation_deg=(0.0, slope_deg, 0.0),
+                   material=materials["soil"])
+    else:
+        create_box(stage, "/World/Ground",
+                   size=g["size"], position=g["position"],
+                   material=materials["soil"])
 
 
 def create_walls(stage, materials, cfg):
@@ -24,15 +48,49 @@ def create_walls(stage, materials, cfg):
                    material=materials["wall"])
 
 
+def _create_plant(stage, path, stem_h, canopy_h, canopy_w, canopy_d,
+                  stem_radius, material):
+    """Create a single plant: thin stem cylinder + wider canopy box.
+
+    Structure:
+        Xform "Plant"
+          ├── Stem (cylinder, r=0.015m, from ground to canopy base)
+          └── Canopy (box, wider than stem, at top)
+    """
+    xform = UsdGeom.Xform.Define(stage, path)
+
+    # Stem: thin cylinder from ground to canopy base
+    stem_path = f"{path}/Stem"
+    stem_xf = UsdGeom.Xform.Define(stage, stem_path)
+    stem_xf.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, stem_h / 2.0))
+    stem = UsdGeom.Cylinder.Define(stage, f"{stem_path}/Mesh")
+    stem.CreateRadiusAttr(stem_radius)
+    stem.CreateHeightAttr(stem_h)
+    stem.CreateAxisAttr("Z")
+
+    # Canopy: wider box sitting on top of stem
+    canopy_path = f"{path}/Canopy"
+    canopy_xf = UsdGeom.Xform.Define(stage, canopy_path)
+    canopy_xf.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, stem_h + canopy_h / 2.0))
+    canopy = UsdGeom.Cube.Define(stage, f"{canopy_path}/Mesh")
+    canopy.AddScaleOp().Set(Gf.Vec3f(canopy_d / 2.0, canopy_w / 2.0, canopy_h / 2.0))
+
+    # Collision on canopy only (stem too thin to matter for navigation)
+    UsdPhysics.CollisionAPI.Apply(canopy.GetPrim())
+
+    # Material on canopy (stem gets default dark green)
+    if material:
+        UsdShade.MaterialBindingAPI(canopy.GetPrim()).Bind(material)
+
+    return xform
+
+
 def create_crop_rows(stage, materials, cfg):
-    """Create crop rows as segmented foliage with gaps.
+    """Create crop rows as segmented plants with stems and canopy.
 
-    Instead of monolithic boxes, each row is built from plant segments
-    with gaps between them. This gives realistic depth camera returns
-    (individual plant silhouettes vs flat walls) and allows partial
-    see-through at certain angles — matching real greenhouse crops.
-
-    Segments have random height/width variation to break visual uniformity.
+    Each row is a series of plants with gaps between them, giving
+    realistic depth camera returns (individual plant silhouettes
+    with visible stems and leaf mass, not flat walls).
     """
     UsdGeom.Xform.Define(stage, "/World/CropRows")
     r = cfg["crop_rows"]
@@ -47,7 +105,11 @@ def create_crop_rows(stage, materials, cfg):
     stride = seg_len + gap_len
     row_start_x = r["center_x"] - r["length"] / 2.0
 
-    # Deterministic seed for reproducible greenhouse layout
+    # Plant geometry ratios
+    stem_ratio = 0.35          # stem is 35% of total height
+    stem_radius = 0.015        # 15mm stem diameter (realistic for tomato/pepper)
+    canopy_overhang = 0.1      # canopy 10cm wider than base segment
+
     rng = random.Random(42)
 
     for row_i, y in enumerate(r["y_positions"]):
@@ -57,20 +119,24 @@ def create_crop_rows(stage, materials, cfg):
 
         num_segments = int(r["length"] / stride)
         for seg_i in range(num_segments):
-            # Per-segment random variation
             dh = rng.uniform(-h_var, h_var)
             dw = rng.uniform(-w_var, w_var)
-            seg_h = r["height"] + dh
-            seg_w = r["width"] + dw
+            total_h = r["height"] + dh
+            base_w = r["width"] + dw
+
+            stem_h = total_h * stem_ratio
+            canopy_h = total_h * (1.0 - stem_ratio)
+            canopy_w = base_w + canopy_overhang
+            canopy_d = seg_len
 
             seg_x = row_start_x + seg_i * stride + seg_len / 2.0
-            seg_z = seg_h / 2.0
 
-            create_box(
-                stage, f"{row_path}/Seg{seg_i}",
-                size=(seg_len, seg_w, seg_h),
-                position=(seg_x, y, seg_z),
-                material=mat)
+            plant_xf = _create_plant(
+                stage, f"{row_path}/Plant{seg_i}",
+                stem_h=stem_h, canopy_h=canopy_h,
+                canopy_w=canopy_w, canopy_d=canopy_d,
+                stem_radius=stem_radius, material=mat)
+            plant_xf.AddTranslateOp().Set(Gf.Vec3d(seg_x, y, 0.0))
 
 
 def create_rails(stage, materials, cfg):
