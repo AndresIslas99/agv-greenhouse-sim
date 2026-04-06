@@ -97,4 +97,66 @@ def generate_launch_description():
             parameters=[{'use_sim_time': True}],
             output='screen',
         ),
+
+        # Left camera lens distortion (ZED 2i barrel distortion)
+        Node(
+            package='agv_isaac_sim',
+            executable='sim_lens_distortion.py',
+            name='sim_lens_distortion_left',
+            parameters=[{
+                'use_sim_time': True,
+                'k1': -0.0425, 'k2': 0.0105,
+                'p1': 0.0, 'p2': 0.0, 'k3': 0.0,
+                'fx': 527.5, 'fy': 527.5, 'cx': 640.0, 'cy': 360.0,
+                'width': 1280, 'height': 720,
+            }],
+            remappings=[
+                ('image_clean', '/zed/zed_node/left/image_clean'),
+                ('image_raw', '/zed/zed_node/left/image_raw'),
+                ('image_rect_color', '/zed/zed_node/left/image_rect_color'),
+                ('camera_info', '/zed/zed_node/left/camera_info'),
+            ],
+            output='screen',
+        ),
+
+        # Right camera lens distortion
+        Node(
+            package='agv_isaac_sim',
+            executable='sim_lens_distortion.py',
+            name='sim_lens_distortion_right',
+            parameters=[{
+                'use_sim_time': True,
+                'k1': -0.0425, 'k2': 0.0105,
+                'p1': 0.0, 'p2': 0.0, 'k3': 0.0,
+                'fx': 527.5, 'fy': 527.5, 'cx': 640.0, 'cy': 360.0,
+                'width': 1280, 'height': 720,
+            }],
+            remappings=[
+                ('image_clean', '/zed/zed_node/right/image_clean'),
+                ('image_raw', '/zed/zed_node/right/image_raw'),
+                ('image_rect_color', '/zed/zed_node/right/image_rect_color'),
+                ('camera_info', '/zed/zed_node/right/camera_info'),
+            ],
+            output='screen',
+        ),
+
+        # Depth noise injector — adds calibrated distance-dependent noise
+        # to match real ZED 2i depth accuracy: σ(d) = 0.002 + 0.005×d
+        Node(
+            package='agv_isaac_sim',
+            executable='sim_depth_noise.py',
+            name='sim_depth_noise',
+            parameters=[{
+                'use_sim_time': True,
+                'noise_base': 0.002,
+                'noise_scale': 0.005,
+                'dropout_distance': 15.0,
+                'dropout_rate': 0.3,
+            }],
+            remappings=[
+                ('depth_raw', '/zed/zed_node/depth/raw'),
+                ('depth_registered', '/zed/zed_node/depth/depth_registered'),
+            ],
+            output='screen',
+        ),
     ])
