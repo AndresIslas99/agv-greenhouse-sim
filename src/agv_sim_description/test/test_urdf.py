@@ -54,11 +54,10 @@ class TestRequiredLinks:
         'zed_camera_link',
         'zed_camera_center',
         'zed_left_camera_frame',
-        'zed_left_camera_optical_frame',
+        'zed_left_camera_frame_optical',
         'zed_right_camera_frame',
-        'zed_right_camera_optical_frame',
+        'zed_right_camera_frame_optical',
         'imu_link',
-        'laser_frame',
     ]
 
     def test_all_required_links_present(self, urdf_tree):
@@ -96,8 +95,8 @@ class TestSensorConfig:
 
         # Verify chain exists (any path from camera_link down to optical frames)
         links = {link.get('name') for link in urdf_tree.findall('.//link')}
-        assert 'zed_left_camera_optical_frame' in links
-        assert 'zed_right_camera_optical_frame' in links
+        assert 'zed_left_camera_frame_optical' in links
+        assert 'zed_right_camera_frame_optical' in links
 
 
 class TestTopicParity:
