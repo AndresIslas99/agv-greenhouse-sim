@@ -16,6 +16,7 @@ Endpoints:
   POST /reset {x,y,yaw}       not implemented yet
 """
 import json
+import math
 import threading
 import time
 from collections import deque
@@ -27,9 +28,8 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from rclpy.action import ActionClient
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry
-from std_msgs.msg import String
-
-import math
+from sensor_msgs.msg import Image
+from std_msgs.msg import String, Bool
 
 try:
     from nav2_msgs.action import NavigateToPose
@@ -37,7 +37,11 @@ try:
 except ImportError:
     NAV2_AVAILABLE = False
 
-from fastapi import FastAPI, HTTPException, Query
+import cv2
+import numpy as np
+from cv_bridge import CvBridge
+
+from fastapi import FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel
 import uvicorn
 
@@ -48,6 +52,13 @@ class Goal(BaseModel):
     x: float
     y: float
     yaw: float = 0.0
+
+
+class ResetPose(BaseModel):
+    x: float = 5.5
+    y: float = 0.0
+    yaw: float = 0.0
+    z: float = 0.2
 
 
 # ─── ROS-side state aggregator ────────────────────────────────────────────
@@ -71,8 +82,13 @@ class SimState(Node):
         self.cumulative_distance = 0.0
         self.cumulative_collisions = 0
         self._last_xy = None
+        self._latest_jpeg = None      # bytes, last encoded frame
+        self._latest_jpeg_t = None    # wall time when encoded
+        self._bridge = CvBridge()
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        # Camera images come on best-effort QoS from Isaac
+        cam_qos = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
         latched = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
@@ -85,6 +101,18 @@ class SimState(Node):
         self.create_subscription(String, '/agv/sim/events', self._on_event, qos)
         self.create_subscription(String, '/agv/sim/episode_summary',
                                  self._on_episode, latched)
+        self.create_subscription(Image, '/agv/zed/left/image_rect_color',
+                                 self._on_image, cam_qos)
+
+        # Reset request publisher (latched). An OmniGraph reset handler in
+        # Isaac is required to actually teleport — currently the topic is
+        # advertised so an external script can listen, but no in-sim consumer
+        # exists yet. POST /reset returns 202 Accepted with a hint.
+        self.reset_pub = self.create_publisher(
+            PoseStamped, '/agv/sim/reset_request', latched)
+        # E-stop helper
+        self.estop_pub = self.create_publisher(Bool, '/agv/e_stop', qos)
+        self.motor_enable_pub = self.create_publisher(Bool, '/agv/motor_enable', qos)
 
         if NAV2_AVAILABLE:
             self.nav_client = ActionClient(self, NavigateToPose,
@@ -134,6 +162,24 @@ class SimState(Node):
             return
         with self.lock:
             self.episodes.append(d)
+
+    def _on_image(self, msg: Image):
+        # Encode at most every ~200ms to limit CPU; the latest frame is
+        # always available regardless of how often /snapshot.jpg is hit.
+        now = time.time()
+        if self._latest_jpeg_t and (now - self._latest_jpeg_t) < 0.2:
+            return
+        try:
+            cv = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            ok, buf = cv2.imencode('.jpg', cv,
+                                   [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            if ok:
+                with self.lock:
+                    self._latest_jpeg = buf.tobytes()
+                    self._latest_jpeg_t = now
+        except Exception as e:
+            self.get_logger().warning(f'image encode failed: {e}',
+                                      throttle_duration_sec=10.0)
 
     # ── snapshots for HTTP ──
 
@@ -185,6 +231,51 @@ class SimState(Node):
         future = self.nav_client.send_goal_async(msg)
         return {'ok': True, 'sent': {'x': goal.x, 'y': goal.y, 'yaw': goal.yaw}}
 
+    def snapshot(self):
+        """Return (jpeg_bytes, age_seconds) or (None, None) if no frame yet."""
+        with self.lock:
+            if self._latest_jpeg is None:
+                return None, None
+            age = time.time() - self._latest_jpeg_t
+            return self._latest_jpeg, age
+
+    def request_reset(self, pose: ResetPose) -> dict:
+        """Publish a reset request. Actual teleport requires an in-sim handler.
+
+        A future improvement adds an OmniGraph script-node that subscribes to
+        /agv/sim/reset_request and calls UsdGeom.Xformable.SetTranslate on
+        the /agv prim. For now we publish the request and clear motion state.
+        """
+        msg = PoseStamped()
+        msg.header.frame_id = 'world'
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.pose.position.x = pose.x
+        msg.pose.position.y = pose.y
+        msg.pose.position.z = pose.z
+        cy = math.cos(pose.yaw * 0.5)
+        sy = math.sin(pose.yaw * 0.5)
+        msg.pose.orientation.z = sy
+        msg.pose.orientation.w = cy
+        self.reset_pub.publish(msg)
+        # Also disarm and e-stop briefly so the robot stops moving
+        self.motor_enable_pub.publish(Bool(data=False))
+        self.estop_pub.publish(Bool(data=True))
+        return {
+            'ok': True,
+            'requested': {'x': pose.x, 'y': pose.y, 'yaw': pose.yaw, 'z': pose.z},
+            'note': ('Reset request published on /agv/sim/reset_request. '
+                     'Physical teleport requires an in-sim OmniGraph handler '
+                     '(not yet implemented). Robot has been disarmed.'),
+        }
+
+    def set_motor_enable(self, on: bool) -> dict:
+        self.motor_enable_pub.publish(Bool(data=on))
+        return {'ok': True, 'motor_enable': on}
+
+    def set_estop(self, on: bool) -> dict:
+        self.estop_pub.publish(Bool(data=on))
+        return {'ok': True, 'e_stop': on}
+
     # ── helpers ──
 
     @staticmethod
@@ -230,8 +321,18 @@ def make_app(state: SimState) -> FastAPI:
     def root():
         return {
             'name': 'agv_sim_validation',
-            'endpoints': ['/state', '/metrics', '/events', '/episodes',
-                          '/viz_url', '/goal (POST)'],
+            'endpoints': {
+                'GET /state':            'snapshot of pose, GT, error, last event',
+                'GET /metrics':          'session totals',
+                'GET /events?since=':    'event timeline since a sim-time',
+                'GET /episodes':         'completed episode summaries',
+                'GET /snapshot.jpg':     'last ZED left frame, JPEG',
+                'GET /viz_url':          'Foxglove WebSocket endpoint',
+                'POST /goal':            'Nav2 goal: {x, y, yaw}',
+                'POST /reset':           'request teleport: {x, y, yaw, z}',
+                'POST /motor/enable':    'arm/disarm: {on: bool}',
+                'POST /e_stop':          'set/clear e-stop: {on: bool}',
+            },
         }
 
     @app.get('/state')
@@ -250,6 +351,40 @@ def make_app(state: SimState) -> FastAPI:
     def get_episodes():
         return {'count': len(state.episodes), 'episodes': state.episodes_list()}
 
+    @app.get('/episodes/{episode_id}/bag')
+    def get_episode_bag(episode_id: int):
+        """Return the path to the rosbag for an episode (server-local path).
+
+        Useful when the LLM agent runs on the same host (or an NFS mount).
+        For remote retrieval, the agent should `scp` or `rsync` the path.
+        """
+        import os
+        for ep in state.episodes_list():
+            if ep.get('episode_id') == episode_id:
+                bag = ep.get('bag_path')
+                if not bag:
+                    raise HTTPException(status_code=404,
+                                        detail='No bag recorded for this episode')
+                exists = os.path.isdir(bag) or os.path.isfile(bag + '.db3')
+                return {
+                    'episode_id': episode_id,
+                    'bag_path': bag,
+                    'exists': exists,
+                    'host_hint': 'rsync from this path; LLM-side download not implemented.',
+                }
+        raise HTTPException(status_code=404, detail='Episode not found')
+
+    @app.get('/snapshot.jpg')
+    def get_snapshot():
+        jpeg, age = state.snapshot()
+        if jpeg is None:
+            raise HTTPException(status_code=404,
+                                detail='No camera frame received yet')
+        return Response(
+            content=jpeg, media_type='image/jpeg',
+            headers={'X-Frame-Age-Seconds': f'{age:.3f}'},
+        )
+
     @app.get('/viz_url')
     def get_viz():
         url = state.get_parameter('foxglove_url').value
@@ -262,6 +397,21 @@ def make_app(state: SimState) -> FastAPI:
         if not result.get('ok'):
             raise HTTPException(status_code=503, detail=result.get('error'))
         return result
+
+    @app.post('/reset')
+    def post_reset(pose: ResetPose):
+        return state.request_reset(pose)
+
+    class OnOff(BaseModel):
+        on: bool
+
+    @app.post('/motor/enable')
+    def post_motor_enable(payload: OnOff):
+        return state.set_motor_enable(payload.on)
+
+    @app.post('/e_stop')
+    def post_estop(payload: OnOff):
+        return state.set_estop(payload.on)
 
     return app
 
