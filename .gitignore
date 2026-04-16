@@ -1,0 +1,26 @@
+# colcon build artifacts
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Isaac Sim runtime artifacts
+*.tmp
+*.crash
+
+# Claude Code session files
+.claude/plans/

@@ -5,11 +5,11 @@
 # Modify here to change dimensions, add tags, move obstacles, etc.
 
 textures:
-  base_dir: "agv_sim_worlds/models/textures"
-  tag_dir: "agv_sim_worlds/materials/textures"
+  base_dir: "agv_isaac_sim/assets/greenhouse_textures"
+  tag_dir: "agv_isaac_sim/assets/tag_textures"
 
 physics:
-  timestep_hz: 1000
+  timestep_hz: 200              # 5 ms — matches real BMI088 IMU rate, baked into PhysX scene
   solver_iterations: 12        # 4 was too low; 12 for stable contact in cluttered greenhouse
   gpu_broadphase: true
   gpu_dynamics: true
@@ -25,8 +25,13 @@ ground:
 walls:
   height: 3.0
   thickness: 0.2
+  enable_glass: true              # true = OmniGlass (realistic polycarbonate), false = opaque OmniPBR
+  glass:                          # OmniGlass material params (when enable_glass: true)
+    ior: 1.59                     # polycarbonate refractive index
+    color: [0.92, 0.95, 0.90]    # slight green tint from greenhouse glass
+    frosting_roughness: 0.35      # frosted finish (diffuses transmitted light)
+    thin_walled: true
   material: {texture: "wall_polycarbonate.png", roughness: 0.85, metallic: 0.0}
-  # Note: actual wall specs are in build_greenhouse_usd.py (expanded 49×19m greenhouse)
   specs:
     - {name: North, position: [5.5, 7.5, 1.5],   size: [45.0, 0.2, 3.0]}
     - {name: South, position: [5.5, -7.5, 1.5],  size: [45.0, 0.2, 3.0]}
@@ -75,6 +80,18 @@ apriltags:
   border_thickness: 0.005
   family: "tag36h11"
   total_count: 36          # IDs 0-37, placed by build_greenhouse_usd.py
+  # OmniPBR material params for RTX detection optimization
+  material:
+    roughness: 1.0          # perfectly matte (no specular glare)
+    metallic: 0.0
+    specular: 0.0           # zero specular for consistent camera detection
+    emissive: 0.0           # set to 0.05 for subtle self-illumination in dark scenes
+    color_space: "raw"      # prevent sRGB gamma curve on B/W tag data
+  border_material:
+    roughness: 1.0
+    metallic: 0.0
+    specular: 0.0
+    diffuse_color: [0.95, 0.95, 0.95]
   # Note: Full 36-tag placement is hardcoded in build_greenhouse_usd.py
   # (expanded greenhouse with front + rear sections).
   # The entries below are the original 6 reference tags.
@@ -117,6 +134,15 @@ obstacles:
     - {name: Crate2, position: [4.0, 3.5, 0.15], size: [0.5, 0.4, 0.3], yaw: -11.5}
     - {name: Crate3, position: [25.0, 0.0, 0.15], size: [0.5, 0.4, 0.3], yaw: 28.6}
 
+# NVIDIA asset-based props (loaded as USD references from Isaac Sim asset library)
+props:
+  enabled: true
+  items:
+    - {asset: "pallet", position: [1.5, -6.0, 0.0], yaw: 10.0, scale: 1.0}
+    - {asset: "small_klt", position: [2.0, -5.8, 0.15], yaw: -5.0, scale: 1.0}
+    - {asset: "small_klt", position: [2.3, -5.5, 0.15], yaw: 22.0, scale: 1.0}
+    - {asset: "pallet", position: [26.0, 5.0, 0.0], yaw: -8.0, scale: 1.0}
+
 lighting:
   # Greenhouse lighting: diffuse through translucent polycarbonate roof.
   # Real greenhouses have almost no hard shadows — light is scattered by
@@ -132,7 +158,20 @@ lighting:
     rotation: [-45.0, 30.0, 0.0]
   ambient_dome:
     intensity: 500.0             # was 200 — primary light source in greenhouse
-    color: [0.3, 0.3, 0.28]     # warm ambient from soil/leaf reflection
+    color: [0.3, 0.3, 0.28]     # warm ambient from soil/leaf reflection (fallback when no HDRI)
+    hdri: "greenhouse_sky.hdr"   # relative to textures/ dir; empty = solid color
+                                 # generate with: python3 scripts/generate_hdri.py
+    hdri_rotation: 0.0           # degrees — rotate HDRI for time-of-day variation
+
+  # Supplemental interior lights (simulate overhead grow lights / HPS lamps)
+  supplemental_lights:
+    enabled: true
+    positions_x: [5.0, 15.0, 25.0]   # X positions along greenhouse length
+    intensity: 200.0                   # moderate fill to reduce shadow zones
+    color: [0.95, 0.97, 0.90]        # warm daylight through polycarbonate
+    width: 4.0                         # rect light width (m)
+    height: 2.0                        # rect light height (m)
+    mount_z: 2.85                      # mounting height (just below roof beams at 3m)
 
   # Tier 2: Volumetric fog for humidity simulation
   # Isaac Sim RTX supports volumetric particles. Enable when needed.

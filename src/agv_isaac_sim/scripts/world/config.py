@@ -1,7 +1,7 @@
 """Load and resolve world configuration from YAML.
 
 Path resolution strategy:
-1. Walk up from __file__ looking for src/agv_sim_worlds/ (works in source tree)
+1. Walk up from __file__ looking for src/agv_isaac_sim/assets/ (works in source tree)
 2. Support AGV_SIM_SRC_DIR env var override for non-standard layouts
 """
 
@@ -10,18 +10,18 @@ import yaml
 
 
 def _find_src_dir():
-    """Find the workspace src/ directory containing agv_sim_worlds."""
+    """Find the workspace src/ directory containing agv_isaac_sim/assets."""
     current = os.path.abspath(__file__)
     for _ in range(10):
         current = os.path.dirname(current)
-        candidate = os.path.join(current, "agv_sim_worlds", "models", "textures")
+        candidate = os.path.join(current, "agv_isaac_sim", "assets", "greenhouse_textures")
         if os.path.isdir(candidate):
             return current
-        candidate = os.path.join(current, "src", "agv_sim_worlds", "models", "textures")
+        candidate = os.path.join(current, "src", "agv_isaac_sim", "assets", "greenhouse_textures")
         if os.path.isdir(candidate):
             return os.path.join(current, "src")
     raise FileNotFoundError(
-        "Cannot find agv_sim_worlds package. Set AGV_SIM_SRC_DIR env var.")
+        "Cannot find agv_isaac_sim/assets. Set AGV_SIM_SRC_DIR env var.")
 
 
 def _find_isaac_pkg_dir():

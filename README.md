@@ -1,289 +1,154 @@
-# AGV Greenhouse Simulation
+# AGV Greenhouse Simulation — Isaac Sim
 
-Gz Harmonic (Gazebo Sim 8) simulation for the AGV greenhouse robot. An **accuracy-focused simulation** that replicates the real hardware's ZED 2i stereo camera, ODrive motor shaping, real AprilTag textures (tag36h11 via PBR materials), and greenhouse heating pipe rails — letting the software team develop and test Nav2, EKF, vision, and mission logic with high-fidelity sensor and actuator behavior.
+NVIDIA Isaac Sim virtual body for the AGV greenhouse robot. Publishes the
+exact topic contract that the production brain at [agv-greenhouse](https://github.com/AndresIslas99/agv-greenhouse)
+expects from the real ZED 2i + ODrive S1 + BMI088 hardware.
 
-**Spatial accuracy notes:** AprilTags are vertical (pitch-rotated) at Z=0.25m (camera height), facing the robot's approach direction. Heating rails run along crop rows (+X axis) via pitch rotation. Lidar is mounted above the chassis top.
+The sim is deliberately **dumb**: it provides physics + sensors + actuators,
+nothing else. EKF, SLAM, Nav2, AprilTag detection and every other brain
+component runs on the Jetson, not here.
 
 ## Prerequisites
 
 - **ROS 2 Humble Hawksbill**
-- **Gz Harmonic (Gazebo Sim 8)** with `ros_gz` packages
-- Required ROS 2 packages:
+- **NVIDIA Isaac Sim 4.x** (standalone installation)
+- **NVIDIA driver 535+** with an RTX GPU (8 GB+ VRAM)
+- System packages:
 
 ```bash
 sudo apt install \
-  ros-humble-gazebo-ros-pkgs \
   ros-humble-robot-state-publisher \
-  ros-humble-joint-state-publisher \
   ros-humble-xacro \
-  ros-humble-robot-localization \
-  ros-humble-slam-toolbox \
-  ros-humble-nav2-bringup \
-  ros-humble-nav2-smac-planner \
-  ros-humble-nav2-regulated-pure-pursuit-controller \
-  ros-humble-nav2-collision-monitor \
   ros-humble-teleop-twist-keyboard \
   ros-humble-tf2-ros \
-  ros-humble-tf2-geometry-msgs
-```
-
-Optional (for camera-based AprilTag detection):
-```bash
-sudo apt install ros-humble-apriltag-ros
+  ros-humble-pointcloud-to-laserscan \
+  ros-humble-topic-tools
 ```
 
 ## Build
 
 ```bash
-cd ~/agv-greenhouse-sim
+cd ~/agv-sim
 colcon build --symlink-install
 source install/setup.bash
 ```
 
-## Packages
+Two packages compile: `agv_isaac_sim` and `agv_sim_drive`.
 
-| Package | Description |
-|---------|-------------|
-| `agv_sim_description` | Simulation URDF with Gazebo plugins (diff-drive, ZED 2i stereo camera, IMU, lidar) |
-| `agv_sim_worlds` | Gazebo world files: greenhouse (with heating pipe rails) and nav_test environments |
-| `agv_sim_bringup` | Launch files for all simulation modes |
-| `agv_sim_nav` | Nav2 configuration (SmacPlannerHybrid + RegulatedPurePursuit) |
-| `agv_sim_apriltags` | Real tag36h11 textures, apriltag_ros config, and fake proximity detector |
-| `agv_sim_drive` | ODrive-realistic wheel shaping node (C++17) |
+## First-time setup — generate the USD files
 
-## Launch Modes
-
-### 1. Teleop Mode
-Drive the robot manually in the greenhouse world.
+The procedural greenhouse world and robot are built from config + URDF at
+generation time. This must be done once after cloning and again whenever
+`world_config.yaml`, `import_robot_usd.py`, or the URDF change:
 
 ```bash
-ros2 launch agv_sim_bringup sim_teleop.launch.py
+cd ~/agv-sim
+isaacsim --exec src/agv_isaac_sim/scripts/build_greenhouse_usd.py
+isaacsim --exec src/agv_isaac_sim/scripts/import_robot_usd.py
 ```
 
-In another terminal, drive with keyboard:
-```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/agv/cmd_vel
-```
+Output:
+- `src/agv_isaac_sim/worlds/greenhouse_simple.usd`
+- `src/agv_isaac_sim/robot/agv_sim.usd`
 
-### 2. Mapping Mode
-Create a map of the greenhouse using slam_toolbox.
+## Launch modes
 
-```bash
-ros2 launch agv_sim_bringup sim_mapping.launch.py
-```
+### Standalone teleop (smoke test)
 
-Drive the robot around, then save the map:
-```bash
-ros2 run nav2_map_server map_saver_cli -f ~/greenhouse_map --ros-args -r map:=/agv/map
-```
-
-### 3. Fusion Mode
-Test dual EKF sensor fusion with slam_toolbox localization.
+Starts Isaac Sim ROS components with keyboard control. Good for verifying
+that the sim is publishing the expected topics and the robot responds to
+commands.
 
 ```bash
-ros2 launch agv_sim_bringup sim_fusion.launch.py map:=~/greenhouse_map
+# Terminal 1 — Isaac Sim itself
+isaacsim --open-usd src/agv_isaac_sim/worlds/greenhouse_simple.usd --ros2
+
+# Terminal 2 — ROS launch (robot_state_publisher, realism relays, drive shaping, teleop)
+ros2 launch agv_isaac_sim isaac_teleop.launch.py
 ```
 
-### 4. Navigation Mode (Full Stack)
-Complete Nav2 with localization, autonomous A-to-B navigation, and apriltag_ros detection.
+An `xterm` window opens with teleop_twist_keyboard. Drive the robot and
+observe topics:
 
 ```bash
-ros2 launch agv_sim_bringup sim_nav.launch.py map:=~/greenhouse_map
+ros2 topic hz /agv/wheel_odom                  # 50 Hz
+ros2 topic hz /agv/imu/data                    # 200 Hz (target)
+ros2 topic hz /agv/zed/left/image_rect_color   # 15 Hz
+ros2 topic echo /agv/motor_state --once        # JSON with 13 fields
+ros2 run tf2_tools view_frames                 # should include imu_link, zed_*
 ```
 
-Send a Nav2 goal:
-```bash
-ros2 action send_goal /agv/navigate_to_pose nav2_msgs/action/NavigateToPose \
-  "{pose: {header: {frame_id: 'map'}, pose: {position: {x: 8.0, y: 0.0}, orientation: {w: 1.0}}}}"
-```
+### HIL production (brain on Jetson drives the sim)
 
-### 5. AprilTag Detection
-Camera-based detection using apriltag_ros (run alongside any mode):
-
-```bash
-ros2 launch agv_sim_bringup sim_apriltag.launch.py
-```
-
-Or use the fake proximity-based detector:
-```bash
-ros2 launch agv_sim_apriltags fake_markers.launch.py
-```
-
-### World Selection
-Use the nav_test world for simple A-to-B testing:
+Starts exactly the components the brain's `agv_hil_full.launch.py`
+expects. No brain logic runs in the sim — only the hardware-equivalent
+publishers plus the minimum HIL shims (motor gate, cuVSLAM replacement,
+pointcloud_to_laserscan with production params).
 
 ```bash
-ros2 launch agv_sim_bringup sim_teleop.launch.py world:=nav_test
+# Terminal 1 — Isaac Sim
+isaacsim --open-usd src/agv_isaac_sim/worlds/greenhouse_simple.usd --ros2
+
+# Terminal 2 — HIL launch on the sim PC
+export ROS_DOMAIN_ID=42                           # required
+export CYCLONEDDS_URI=file://$(pwd)/cyclonedds.xml  # for cross-machine discovery
+ros2 launch agv_isaac_sim isaac_hil.launch.py
+
+# Terminal 3 — the brain on the Jetson (or locally for testing)
+export ROS_DOMAIN_ID=42
+ros2 launch agv_bringup agv_hil_full.launch.py map:=/path/to/greenhouse_map.yaml
 ```
 
-### Custom Spawn Position
-```bash
-ros2 launch agv_sim_bringup sim_teleop.launch.py x:=5.0 y:=-3.0 yaw:=1.57
-```
+Optional: pass `has_map:=true` to `isaac_hil.launch.py` when running against
+a brain configured with `has_map:=true` (the brain then publishes velocity
+commands on `/agv/cmd_vel_safe` instead of `/agv/cmd_vel`).
 
-## ZED 2i Stereo Camera Simulation
+## Topic contract
 
-The simulation replicates the real ZED 2i camera with matching specs:
+See [TOPIC_CONTRACT.md](TOPIC_CONTRACT.md). Every topic the sim publishes
+mirrors the real hardware contract in [agv-greenhouse/specs/interfaces.yaml](https://github.com/AndresIslas99/agv-greenhouse/blob/main/specs/interfaces.yaml).
 
-| Parameter | Value |
-|-----------|-------|
-| Baseline | 120mm (0.12m) |
-| FOV | 110° H × 70° V |
-| Resolution | 1280×720 @30fps |
-| Depth range | 0.3m – 20.0m |
-| IMU rate | 400 Hz |
-| IMU gyro noise | 0.00279 rad/s |
-| IMU accel noise | 0.0314 m/s² |
+## Physical parameters
 
-### Camera Topics
+Calibrated 2026-04-08 on the real robot:
 
-| Topic | Type | Description |
-|-------|------|-------------|
-| `/zed/zed_node/left/image_rect_color` | sensor_msgs/Image | Left camera RGB |
-| `/zed/zed_node/left/camera_info` | sensor_msgs/CameraInfo | Left camera intrinsics |
-| `/zed/zed_node/right/image_rect_color` | sensor_msgs/Image | Right camera RGB |
-| `/zed/zed_node/right/camera_info` | sensor_msgs/CameraInfo | Right camera intrinsics |
-| `/zed/zed_node/depth/depth_registered` | sensor_msgs/Image | Depth image |
-| `/zed/zed_node/point_cloud/cloud_registered` | sensor_msgs/PointCloud2 | 3D point cloud |
-| `/zed/zed_node/imu/data` | sensor_msgs/Imu | IMU (400Hz) |
+| | Value | Source |
+|---|---|---|
+| wheel_radius | 0.0781 m | `agv_odrive/config/odrive_params.yaml` |
+| track_width | 0.960 m | same |
+| gear_ratio | 10.0 | same |
+| camera_mount | `base_link → (0.70, 0, -0.055)` | `agv_geometry.yaml` |
 
-## ODrive-Realistic Drive Shaping
+These live in [src/agv_isaac_sim/urdf/agv_sim.urdf.xacro](src/agv_isaac_sim/urdf/agv_sim.urdf.xacro)
+and [src/agv_sim_drive/config/drive_shaping_params.yaml](src/agv_sim_drive/config/drive_shaping_params.yaml).
+**Do not change without re-measuring on the real robot.**
 
-The `sim_drive_shaping_node` replicates the real ODrive CAN node's wheel command pipeline:
-
-```
-cmd_vel → [inverse kinematics] → [per-wheel shaping] → shaped_cmd_vel → Gazebo diff_drive
-```
-
-**Shaping stages per wheel:**
-1. **Zero-velocity epsilon** (0.03 turns/s): Below this threshold, send exact zero — prevents creep
-2. **Acceleration limiter** (1.0 turns/s²): Rate-limits velocity changes per timestep
-3. **Min effective velocity**: Stiction compensation (disabled by default)
-4. **Per-side inversion and scaling**: Matches real motor wiring
-
-**Parameters** (from `drive_shaping_params.yaml`):
-
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `wheel_radius` | 0.0625 m | 125mm diameter wheels |
-| `track_width` | 0.735 m | Center-to-center |
-| `publish_rate_hz` | 50 | Loop rate |
-| `cmd_vel_timeout_ms` | 500 | Safety timeout |
-| `zero_vel_epsilon` | 0.03 turns/s | Dead zone |
-| `max_wheel_accel` | 1.0 turns/s² | Accel limit |
-
-## AprilTag Detection
-
-### Real Textures (apriltag_ros)
-The simulation uses real tag36h11 PNG textures on the marker models. When `apriltag_ros` is installed, camera-based detection works:
+## Asset generation (optional)
 
 ```bash
-# Launches automatically in sim_nav mode, or standalone:
-ros2 launch agv_sim_bringup sim_apriltag.launch.py
+python3 scripts/generate_textures.py            # PBR → agv_isaac_sim/assets/greenhouse_textures/
+python3 scripts/generate_apriltag_textures.py   # tag36h11 PNGs → agv_isaac_sim/assets/tag_textures/
 ```
 
-Detections published on `/agv/tag_detections`.
-
-### Fake Proximity Detector (fallback)
-When apriltag_ros is not available or the camera is not active, the fake detector publishes poses based on TF proximity:
-
-```bash
-ros2 launch agv_sim_apriltags fake_markers.launch.py
-```
-
-Publishes `PoseWithCovarianceStamped` on `/{ns}/marker_pose` when the robot is within 2m of any marker.
-
-### Tag Texture Generation
-To regenerate the tag textures:
-```bash
-python3 scripts/generate_apriltag_textures.py
-```
-
-## Greenhouse World Layout
-
-The world includes 6 crop rows, 5 aisles with heating pipe rails, walls, crates, and 6 AprilTag markers.
+## Project layout
 
 ```
-     0     5    10    15    20    25    30
-  +--+-----+-----+-----+-----+-----+-----+
-  |  |     | Row6 ========================|  7.5
-  |  |     | ═══ heating rails ═══        |
-  |  |     | Row5 ========================|
-  |  |     | ═══ heating rails ═══        |
-  |  | T3  | Row4 ========================|
-  |  |     | ═══ heating rails ═══        |  0.0
-  | T0     | Row3 ========================|
-  |  |     | ═══ heating rails ═══        |
-  |  | T2  | Row2 ========================|
-  |  |     | ═══ heating rails ═══        |
-  | T5     | Row1 ========================| -7.5
-  +--+-----+-----+-----+-----+-----+-----+
-   ^               ^                    ^
-   Start area      Crop rows (20m)     T1
-   (clear)
+src/
+├── agv_isaac_sim/
+│   ├── launch/      isaac_sim, isaac_teleop, isaac_hil
+│   ├── urdf/        agv_sim.urdf.xacro, agv_base.xacro, wheel.xacro, caster.xacro
+│   ├── config/      isaac_bridge.yaml, physics_params.yaml, world_config.yaml, domain_randomization.yaml, zed2i_calibration.yaml
+│   ├── assets/      greenhouse_textures/ (11 PBR), tag_textures/ (38 tag36h11), greenhouse_sky.hdr
+│   ├── scripts/     build_greenhouse_usd.py, import_robot_usd.py, setup_omnigraph.py,
+│   │                isaac_ros_bridge_node.py, sim_depth_noise.py, sim_motor_gate.py,
+│   │                sim_global_odom.py, sim_domain_randomizer.py, generate_hdri.py,
+│   │                validate_apriltag_detection.py, robot/, world/
+│   ├── worlds/      greenhouse_simple.usd (generated)
+│   ├── robot/       agv_sim.usd (generated)
+│   └── extensions/  agv_diff_drive (Isaac kit extension)
+│
+└── agv_sim_drive/
+    ├── src/sim_drive_shaping_node.cpp
+    ├── config/drive_shaping_params.yaml
+    └── launch/drive_shaping.launch.py
 ```
-
-**Heating pipe rails:** 2 parallel 51mm steel pipes per aisle, 450mm apart, 20m long, running along crop rows (+X axis) at ground level.
-
-T0-T5 = AprilTag positions. Robot spawns at (2.0, 0.0) in the start area.
-
-## Configuration Parity with Real Robot
-
-| Parameter | Value |
-|-----------|-------|
-| Namespace | `agv` |
-| Wheel radius | 0.0625 m |
-| Track width | 0.735 m |
-| Chassis | 1.0 x 0.6 x 0.15 m |
-| cmd_vel topic | `/agv/cmd_vel` |
-| Shaped cmd_vel topic | `/agv/shaped_cmd_vel` |
-| Wheel odom topic | `/agv/wheel_odom` |
-| IMU topic | `/zed/zed_node/imu/data` |
-| Odom frame | `odom` |
-| Base frame | `base_link` |
-| Map frame | `map` |
-| Publish rate | 50 Hz |
-| Left wheel joint | `left_wheel_joint` |
-| Right wheel joint | `right_wheel_joint` |
-
-## TF Tree
-
-```
-map
- └── odom          (global EKF in fusion/nav modes, slam_toolbox in mapping mode)
-      └── base_link    (local EKF in fusion/nav modes, diff_drive in teleop/mapping)
-           ├── left_wheel    (continuous, driven by Gazebo diff_drive)
-           ├── right_wheel   (continuous, driven by Gazebo diff_drive)
-           ├── base_footprint (fixed, -0.2m Z)
-           ├── zed_camera_link (fixed, at ZED 2i position)
-           │    ├── zed_camera_center
-           │    ├── zed_left_camera_frame
-           │    │    └── zed_left_camera_optical_frame
-           │    ├── zed_right_camera_frame
-           │    │    └── zed_right_camera_optical_frame
-           │    └── imu_link
-           ├── laser_frame    (fixed, front-mounted)
-           ├── front_caster   (fixed)
-           └── rear_caster    (fixed)
-```
-
-## Simulation Architecture
-
-- **Drive shaping**: All modes include the ODrive-realistic shaping node (`cmd_vel` → `shaped_cmd_vel`)
-- **Teleop mode**: Gazebo diff_drive publishes odom->base_link TF directly
-- **Mapping mode**: diff_drive publishes odom->base_link, slam_toolbox publishes map->odom
-- **Fusion mode**: EKF local owns odom->base_link, EKF global owns map->odom (diff_drive TF disabled)
-- **Nav mode**: Same as fusion + full Nav2 stack + apriltag_ros detection
-
-## AprilTag Markers
-
-6 AprilTag markers (tag36h11 family) with real textures are placed in the greenhouse world:
-
-| Tag ID | Location | Position (x, y) |
-|--------|----------|------------------|
-| 0 | West corridor end | (1.0, 0.0) |
-| 1 | East corridor end | (29.0, 0.0) |
-| 2 | Aisle 1-2 entrance | (6.0, -4.4) |
-| 3 | Aisle 3-4 entrance | (6.0, 0.0) |
-| 4 | Aisle 5-6 entrance | (6.0, 4.4) |
-| 5 | Starting area | (2.5, -5.0) |
