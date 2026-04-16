@@ -21,6 +21,7 @@ brain's agv_ui_backend (and any dashboards) see identical data in sim and real.
 
 import json
 import rclpy
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, String
@@ -46,11 +47,17 @@ class SimMotorGate(Node):
         self.last_linear = 0.0
         self.last_angular = 0.0
 
-        # Publishers (10 Hz, matching real odrive driver)
+        # Publishers (10 Hz, matching real odrive driver).
+        # These timers MUST use wall clock. The real ODrive CAN node emits at
+        # 10 Hz wall-time regardless of any simulator. Using sim clock here
+        # would slow the output whenever the sim runs below real-time (which
+        # happens under heavy GPU load). The brain's heartbeat/timeout checks
+        # expect wall-clock cadence.
         self.pub_state = self.create_publisher(String, 'motor_state', 10)
         self.pub_debug = self.create_publisher(String, 'drive_debug', 10)
-        self.create_timer(0.1, self._publish_state)
-        self.create_timer(0.1, self._publish_debug)
+        wall_clock = Clock(clock_type=ClockType.SYSTEM_TIME)
+        self.create_timer(0.1, self._publish_state, clock=wall_clock)
+        self.create_timer(0.1, self._publish_debug, clock=wall_clock)
 
         # Subscribers
         self.create_subscription(Bool, 'motor_enable', self._on_enable, 10)
