@@ -1,52 +1,54 @@
 """
-AGV Isaac Sim HIL — virtual body for the real brain running on the Jetson.
+AGV Isaac Sim HIL — virtual body for the brain running on the Jetson.
 
-Publishes exactly the topic contract the brain's agv_hil_full.launch.py expects.
-No EKF, no SLAM, no Nav2, no AprilTag detection — those are the brain's job.
+Composes three pieces:
+  1. isaac_sim.launch.py (sensor base: robot_state_publisher, static TFs,
+     IMU bias drift relay, depth noise relay)
+  2. Drive chain: sim_motor_gate → sim_drive_shaping_node → /agv/shaped_cmd_vel
+  3. Brain-facing shims: sim_global_odom (cuVSLAM replacement),
+     pointcloud_to_laserscan (identical to brain production params)
 
 Topics this launch guarantees to the brain network:
-  /clock                            (from Isaac sim time)
-  /agv/wheel_odom                   50 Hz  (from OmniGraph)
-  /agv/joint_states                 50 Hz  (from OmniGraph)
-  /agv/imu/data                     200 Hz (from OmniGraph → isaac_ros_bridge_node bias drift)
-  /agv/zed/left/image_rect_color    15 Hz  (from OmniGraph)
-  /agv/zed/left/camera_info         15 Hz
-  /agv/zed/right/image_rect_color   15 Hz
-  /agv/zed/right/camera_info        15 Hz
-  /agv/zed/depth/depth_registered   15 Hz  (from OmniGraph → sim_depth_noise)
-  /agv/zed/point_cloud/cloud_registered  15 Hz  (from OmniGraph)
-  /agv/scan                         ~10 Hz (from pointcloud_to_laserscan running HERE,
-                                     with the brain's exact production params)
-  /visual_slam/tracking/odometry    ~10 Hz (from sim_global_odom — replaces cuVSLAM
-                                     for HIL since there is no ZED GPU pipeline)
-  /agv/motor_state                  10 Hz  (from sim_motor_gate JSON)
-  /agv/drive_debug                  10 Hz
+  /clock                                 (from Isaac sim time)
+  /tf, /tf_static                        (robot_state_publisher + static TFs)
+  /agv/wheel_odom                        50 Hz  (OmniGraph)
+  /agv/joint_states                      50 Hz  (OmniGraph)
+  /agv/imu/data                          200 Hz (relay with bias drift)
+  /agv/zed/left/image_rect_color         15 Hz  (OmniGraph)
+  /agv/zed/left/camera_info              15 Hz
+  /agv/zed/depth/depth_registered        15 Hz  (relay with distance noise)
+  /agv/zed/point_cloud/cloud_registered  15 Hz  (OmniGraph)
+  /agv/scan                              ~10 Hz (pointcloud_to_laserscan)
+  /visual_slam/tracking/odometry         (sim_global_odom — cuVSLAM replacement)
+  /agv/motor_state                       10 Hz  (sim_motor_gate JSON)
+  /agv/drive_debug                       10 Hz
 
-The brain subscribes to /agv/cmd_vel (mapping-first mode) or /agv/cmd_vel_safe
-(has_map mode) to close the control loop.
+Subscribes (brain publishes):
+  /agv/cmd_vel           (mapping-first mode) OR
+  /agv/cmd_vel_safe      (has_map mode — via topic_tools relay)
+  /agv/motor_enable
+  /agv/e_stop
 
-Network setup (matches brain/specs/launch_sequence.yaml):
-  - ROS_DOMAIN_ID=42 required (excludes rogue dev-PC publishers)
-  - CYCLONEDDS_URI should point to cyclonedds.xml for cross-machine discovery
-
-NOT launched here (brain owns these):
-  - robot_state_publisher (brain's agv_description publishes the URDF)
-  - static TFs for imu_link, zed_camera_link (brain's agv_slam.launch.py publishes them)
-  - Any EKF / SLAM / Nav2 / apriltag_ros node
+Network:
+  ROS_DOMAIN_ID=42 is enforced — matches brain/specs/launch_sequence.yaml.
 
 Usage:
-  export ROS_DOMAIN_ID=42
-  export CYCLONEDDS_URI=file://$(pwd)/cyclonedds.xml
+  # Launcher wrapper already sets ROS_DOMAIN_ID=42:
   ros2 launch agv_isaac_sim isaac_hil.launch.py
+
+  # In has_map mode:
+  ros2 launch agv_isaac_sim isaac_hil.launch.py has_map:=true
 """
 
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
-from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
@@ -56,71 +58,51 @@ def generate_launch_description():
     ns = LaunchConfiguration('namespace')
     has_map = LaunchConfiguration('has_map')
 
-    # The drive shaping node reads cmd_vel from the motor gate (arm/disarm).
-    # Motor gate subscribes to /agv/cmd_vel (mapping-first) or /agv/cmd_vel_safe (has_map).
-    # The gate's output cmd_vel_armed feeds the drive shaping input.
-
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
         DeclareLaunchArgument(
             'has_map', default_value='false',
-            description='If true, motor gate subscribes to /agv/cmd_vel_safe '
-                        '(output of brain safety gate) instead of /agv/cmd_vel. '
-                        'Must match the brain launch has_map arg.'),
+            description='If true, motor gate also accepts /agv/cmd_vel_safe via topic_tools relay.'),
 
-        # Force the production ROS_DOMAIN_ID. Brain requires this.
+        # Force the production ROS_DOMAIN_ID so sim + relays + brain share one domain.
         SetEnvironmentVariable('ROS_DOMAIN_ID', '42'),
 
-        # IMU bias drift relay (bias walk on top of clean Isaac IMU)
-        Node(
-            package='agv_isaac_sim',
-            executable='isaac_ros_bridge_node.py',
-            name='isaac_ros_bridge',
-            namespace=ns,
-            parameters=[{'use_sim_time': True}],
-            remappings=[
-                ('imu/data_clean', '/agv/imu/data_clean'),
-                ('imu/data', '/agv/imu/data'),
-            ],
-            output='screen',
+        # ── Sensor base: URDF + static TFs + realism relays ──
+        # isaac_sim.launch.py provides robot_state_publisher, static TFs for
+        # imu_link / zed_* frames, isaac_ros_bridge (IMU bias drift), and
+        # sim_depth_noise (distance-dependent Gaussian).
+        #
+        # In a production setup where the brain also runs agv_description's
+        # description.launch.py and agv_slam.launch.py's static TFs, there will
+        # be duplicate URDF TF publishers. This is intentional for testing
+        # without a brain; for production, disable this include or launch the
+        # HIL on a different machine than the brain.
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                PathJoinSubstitution([
+                    FindPackageShare('agv_isaac_sim'), 'launch', 'isaac_sim.launch.py',
+                ]),
+            ),
+            launch_arguments={'namespace': ns}.items(),
         ),
 
-        # Depth noise relay (distance-dependent Gaussian + dropout beyond 15m)
-        Node(
-            package='agv_isaac_sim',
-            executable='sim_depth_noise.py',
-            name='sim_depth_noise',
-            namespace=ns,
-            parameters=[{
-                'use_sim_time': True,
-                'noise_base': 0.002,
-                'noise_scale': 0.005,
-                'dropout_distance': 15.0,
-                'dropout_rate': 0.3,
-            }],
-            remappings=[
-                ('depth_raw', '/agv/zed/depth/depth_clean'),
-                ('depth_registered', '/agv/zed/depth/depth_registered'),
-            ],
-            output='screen',
-        ),
+        # ── Drive chain ────────────────────────────────────────────────────
 
-        # ODrive arm/disarm + motor_state/drive_debug JSON
+        # ODrive arm/disarm emulator: /agv/cmd_vel → /agv/cmd_vel_armed
+        # Also publishes /agv/motor_state and /agv/drive_debug JSON at 10 Hz
+        # matching the real agv_odrive contract.
         Node(
             package='agv_isaac_sim',
             executable='sim_motor_gate.py',
             name='sim_motor_gate',
             namespace=ns,
             parameters=[{'use_sim_time': True}],
-            remappings=[
-                # In mapping-first mode the brain publishes /agv/cmd_vel directly.
-                # In has_map mode the brain publishes /agv/cmd_vel_safe (after the
-                # safety gate) and /agv/cmd_vel is a fallback we also accept.
-            ],
             output='screen',
         ),
-        # Alternate: in has_map mode, additionally subscribe motor gate to cmd_vel_safe
-        # via a pass-through relay (topic_tools relay).
+
+        # In has_map mode the brain publishes to /agv/cmd_vel_safe after its
+        # own safety gate. Bridge it into /agv/cmd_vel so the motor gate
+        # sees a single input.
         Node(
             package='topic_tools',
             executable='relay',
@@ -133,6 +115,7 @@ def generate_launch_description():
         ),
 
         # ODrive acceleration ramp emulation: cmd_vel_armed → shaped_cmd_vel
+        # (Isaac's DifferentialController subscribes to shaped_cmd_vel.)
         Node(
             package='agv_sim_drive',
             executable='sim_drive_shaping_node',
@@ -143,9 +126,11 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # cuVSLAM replacement: wheel_odom relayed with frame_id=map.
-        # Brain's ekf_global consumes this as odom1 in differential mode, so
-        # absolute drift does not matter — only the per-tick deltas.
+        # ── Brain-facing shims ─────────────────────────────────────────────
+
+        # cuVSLAM replacement for HIL: wheel_odom republished with frame_id=map.
+        # Brain's ekf_global consumes this as odom1 with differential:true so
+        # absolute drift doesn't matter — only per-tick deltas.
         Node(
             package='agv_isaac_sim',
             executable='sim_global_odom.py',
@@ -156,9 +141,9 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # pointcloud_to_laserscan runs on the sim PC in HIL mode, using the
-        # brain's EXACT production parameters (agv_full.launch.py). This
-        # keeps /agv/scan identical in sim and on the real Jetson.
+        # /agv/scan from ZED point cloud — same params as the brain's
+        # agv_full.launch.py. Runs on the sim PC in HIL mode per the brain's
+        # HIL launch comment.
         Node(
             package='pointcloud_to_laserscan',
             executable='pointcloud_to_laserscan_node',

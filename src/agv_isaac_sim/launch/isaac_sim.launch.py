@@ -90,6 +90,28 @@ def generate_launch_description():
             parameters=[{'use_sim_time': True}],
         ),
 
+        # Optical frames — ROS convention: +Z forward, +X right, +Y down.
+        # Rotation from body frame (x-forward, y-left, z-up) is rpy=(-π/2, 0, -π/2).
+        # Isaac's CameraHelper publishes images/clouds in the *_optical frame.
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='static_tf_zed_left_optical',
+            namespace=ns,
+            arguments=['0', '0', '0', '-1.5707963', '0', '-1.5707963',
+                       'zed_left_camera_frame', 'zed_left_camera_frame_optical'],
+            parameters=[{'use_sim_time': True}],
+        ),
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='static_tf_zed_right_optical',
+            namespace=ns,
+            arguments=['0', '0', '0', '-1.5707963', '0', '-1.5707963',
+                       'zed_right_camera_frame', 'zed_right_camera_frame_optical'],
+            parameters=[{'use_sim_time': True}],
+        ),
+
         # IMU bias drift relay: /agv/imu/data_clean → /agv/imu/data
         Node(
             package='agv_isaac_sim',
@@ -101,6 +123,20 @@ def generate_launch_description():
                 ('imu/data_clean', '/agv/imu/data_clean'),
                 ('imu/data', '/agv/imu/data'),
             ],
+            output='screen',
+        ),
+
+        # odom → base_link TF broadcaster.
+        # Standalone fallback since Isaac's ROS2PublishOdometry publishes the
+        # topic but not the TF. In HIL mode with a real brain, the brain's
+        # ekf_local owns this TF — this node duplicates it but tf2 dedups.
+        Node(
+            package='agv_isaac_sim',
+            executable='sim_odom_tf_broadcaster.py',
+            name='sim_odom_tf_broadcaster',
+            namespace=ns,
+            parameters=[{'use_sim_time': True}],
+            remappings=[('wheel_odom', '/agv/wheel_odom')],
             output='screen',
         ),
 

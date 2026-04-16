@@ -9,6 +9,11 @@
 
 OPEN_SCRIPT="/home/andres/agv-sim/scripts/open_greenhouse.py"
 
+# ROS 2 domain must match the brain's production config (specs/launch_sequence.yaml).
+# The HIL launch (isaac_hil.launch.py) also forces this so sim + relays + brain
+# all speak on the same DDS partition.
+export ROS_DOMAIN_ID=42
+
 exec isaacsim \
   --exec "$OPEN_SCRIPT" \
   --/app/runLoops/main/rateLimitEnabled=false \

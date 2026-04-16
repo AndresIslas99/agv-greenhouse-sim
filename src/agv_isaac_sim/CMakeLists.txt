@@ -19,6 +19,7 @@ install(PROGRAMS
   scripts/sim_domain_randomizer.py
   scripts/sim_global_odom.py
   scripts/sim_motor_gate.py
+  scripts/sim_odom_tf_broadcaster.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
