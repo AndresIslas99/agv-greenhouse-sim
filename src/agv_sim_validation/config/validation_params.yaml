@@ -1,0 +1,51 @@
+# Thresholds for the validation overlay nodes.
+# Tune these as you learn what "normal" looks like for your robot.
+
+/**/ground_truth_publisher:
+  ros__parameters:
+    use_sim_time: true
+    # Isaac publishes world -> agv on /tf. Robot's base_link is at /agv/base_link
+    # in the USD with identity offset, so world -> agv == world -> base_link.
+    # We use 'agv' as the target frame to avoid creating a second parent for
+    # base_link (sim_odom_tf_broadcaster owns odom -> base_link).
+    source_frame: "world"
+    target_frame: "agv"
+    rate_hz: 10.0
+
+/**/localization_monitor:
+  ros__parameters:
+    use_sim_time: true
+    rmse_window_s: 5.0          # rolling window for RMSE smoothing
+    publish_rate_hz: 1.0
+
+/**/events_detector:
+  ros__parameters:
+    use_sim_time: true
+    # Collision: any non-zero velocity into a known obstacle
+    collision_speed_min_m_s: 0.05
+    # Stuck: cmd_vel non-zero but actual speed below threshold for N seconds
+    stuck_cmd_vel_min_m_s: 0.05
+    stuck_actual_max_m_s: 0.02
+    stuck_duration_s: 5.0
+    # Localization drift event
+    drift_pos_threshold_m: 0.5
+    drift_yaw_threshold_rad: 0.35
+    # Marker visibility (cone test)
+    marker_max_distance_m: 5.0
+    marker_fov_deg: 110.0
+
+/**/episode_tracker:
+  ros__parameters:
+    use_sim_time: true
+    bag_dir: "/tmp/agv_runs"
+    record_images: false        # set true to also record /agv/zed/* (heavy)
+    success_position_tol_m: 0.30
+    success_yaw_tol_rad: 0.30
+
+/**/sim_api:
+  ros__parameters:
+    use_sim_time: false         # API runs on wall clock for HTTP timeouts
+    host: "0.0.0.0"
+    port: 8090
+    foxglove_url: "http://localhost:8765"
+    state_cache_age_s: 0.5      # cache /state for this long to absorb LLM polling

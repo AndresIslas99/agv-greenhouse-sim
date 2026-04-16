@@ -63,6 +63,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'has_map', default_value='false',
             description='If true, motor gate also accepts /agv/cmd_vel_safe via topic_tools relay.'),
+        DeclareLaunchArgument(
+            'validation', default_value='false',
+            description='If true, also launch the AI validation overlay (ground truth + events + foxglove).'),
 
         # Force the production ROS_DOMAIN_ID so sim + relays + brain share one domain.
         SetEnvironmentVariable('ROS_DOMAIN_ID', '42'),
@@ -167,5 +170,19 @@ def generate_launch_description():
                 ('scan',     '/agv/scan'),
             ],
             output='screen',
+        ),
+
+        # ── AI validation overlay ─────────────────────────────────────────
+        # Optional: enable with validation:=true. Adds ground-truth pose,
+        # event detector, localization monitor and foxglove_bridge under
+        # /agv/sim/* topics. See agv_sim_validation/README.
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                PathJoinSubstitution([
+                    FindPackageShare('agv_sim_validation'), 'launch',
+                    'validation_overlay.launch.py',
+                ]),
+            ),
+            condition=IfCondition(LaunchConfiguration('validation')),
         ),
     ])
