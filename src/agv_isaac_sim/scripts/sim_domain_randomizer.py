@@ -38,8 +38,8 @@ def _sample(rng, spec):
 
 
 def randomize_lighting(stage, cfg, rng):
-    """Randomize light intensities, directions, and color temperature."""
-    from pxr import UsdLux, Gf
+    """Randomize light intensities, directions, color temperature, and HDRI rotation."""
+    from pxr import UsdLux, UsdGeom, Gf
 
     lc = cfg["lighting"]
 
@@ -58,10 +58,31 @@ def randomize_lighting(stage, cfg, rng):
         UsdLux.DomeLight(dome).GetIntensityAttr().Set(
             _sample(rng, lc["dome_intensity"]))
 
+        # HDRI rotation for time-of-day variation
+        hdri_rot = lc.get("hdri_rotation", None)
+        if hdri_rot:
+            rotation_deg = _sample(rng, hdri_rot)
+            xformable = UsdGeom.Xformable(dome)
+            for op in xformable.GetOrderedXformOps():
+                if op.GetOpName() == "xformOp:rotateXYZ":
+                    op.Set(Gf.Vec3f(0.0, rotation_deg, 0.0))
+                    break
+
     fill = stage.GetPrimAtPath("/World/Lights/Fill")
     if fill:
         UsdLux.DistantLight(fill).GetIntensityAttr().Set(
             _sample(rng, lc["fill_intensity"]))
+
+    # Supplemental rect lights intensity jitter
+    sup_intensity = lc.get("supplemental_intensity", None)
+    if sup_intensity:
+        sup_root = stage.GetPrimAtPath("/World/Lights/Supplemental")
+        if sup_root:
+            intensity = _sample(rng, sup_intensity)
+            for child in sup_root.GetChildren():
+                rect = UsdLux.RectLight(child)
+                if rect:
+                    rect.GetIntensityAttr().Set(intensity)
 
 
 def randomize_crop_rows(stage, cfg, rng):

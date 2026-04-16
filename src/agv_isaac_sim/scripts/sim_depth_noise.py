@@ -15,8 +15,8 @@ The raw depth topic is remapped to an internal topic, and this node
 publishes the noisy version on the original topic name.
 
 Usage in launch:
-    Remap Isaac Sim depth output to /zed/zed_node/depth/raw, then
-    this node subscribes to /raw and publishes noisy /depth_registered.
+    Remap OmniGraph depth output to /agv/zed/depth/depth_clean, then
+    this node subscribes to it and publishes /agv/zed/depth/depth_registered.
 
 Parameters:
     noise_base:  minimum noise floor in meters (default 0.002)

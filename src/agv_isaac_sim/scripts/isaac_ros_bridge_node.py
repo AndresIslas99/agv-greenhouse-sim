@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Isaac Sim ROS 2 bridge helper node.
+"""Isaac Sim IMU realism relay.
 
-Functions:
-1. Relay IMU to alternate topic (/zed/.../imu/data → /agv/imu/data)
-2. Inject realistic IMU bias drift (Wiener process random walk)
+Reads the clean Isaac IMU output on `/agv/imu/data_clean` and republishes on
+`/agv/imu/data` (the topic the brain's ekf_local consumes in HIL mode) with a
+realistic BMI088 bias drift injected on top of the raw samples.
 
-Real BMI055 IMU (in ZED 2i) exhibits slowly-drifting bias on top of
-white noise. Without this, the EKF performs unrealistically well in sim.
+The real BMI088 (inside the ZED 2i) exhibits a slowly-drifting bias on top of
+white noise. Without this relay, the brain's EKF performs unrealistically well
+in simulation — masking tuning issues that will appear on the real robot.
 
 Bias model (Wiener process):
     bias(t+dt) = bias(t) + N(0, σ_walk × √dt)
@@ -50,10 +51,11 @@ class IsaacBridgeNode(Node):
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
-        # Relay IMU to alternate topic (matching Gazebo dual-path bridge)
-        self.imu_pub = self.create_publisher(Imu, '/agv/imu/data', qos)
+        # Relative topic names — launch file remaps to `/agv/imu/data_clean`
+        # (input) and `/agv/imu/data` (output).
+        self.imu_pub = self.create_publisher(Imu, 'imu/data', qos)
         self.imu_sub = self.create_subscription(
-            Imu, '/zed/zed_node/imu/data', self._relay_imu, qos)
+            Imu, 'imu/data_clean', self._relay_imu, qos)
 
         self.get_logger().info(
             f'IMU bridge: bias walk gyro={self.gyro_walk:.5f}, accel={self.accel_walk:.5f}, '

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate procedural textures for the greenhouse simulation.
 
-Creates texture PNG files that give surfaces visual detail for
-stereo depth camera matching (ZED 2i). Without textures, flat
-surfaces produce empty depth maps.
+Creates albedo PNG files and companion normal maps that give surfaces
+visual detail for stereo depth camera matching (ZED 2i) and RTX
+rendering with OmniPBR materials.
 
 Run: python3 scripts/generate_textures.py
 """
@@ -11,9 +11,10 @@ Run: python3 scripts/generate_textures.py
 import os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
+from scipy import ndimage
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__),
-                          '..', 'src', 'agv_sim_worlds', 'models', 'textures')
+                          '..', 'src', 'agv_isaac_sim', 'assets', 'greenhouse_textures')
 
 
 def noise_layer(w, h, scale=1):
@@ -157,24 +158,71 @@ def rail_steel(w=256, h=128):
     return Image.fromarray(img)
 
 
+def generate_normal_map(albedo_img, strength=2.0):
+    """Derive a tangent-space normal map from an albedo image using Sobel filter.
+
+    Convention: R=+X, G=+Y, B=+Z (OpenGL tangent-space).
+    Neutral normal (flat surface) = (128, 128, 255).
+    """
+    grey = np.array(albedo_img.convert('L'), dtype=np.float32) / 255.0
+    dx = ndimage.sobel(grey, axis=1) * strength
+    dy = ndimage.sobel(grey, axis=0) * strength
+
+    # Normal vector: (-dx, -dy, 1) then normalize
+    dz = np.ones_like(dx)
+    length = np.sqrt(dx * dx + dy * dy + dz * dz)
+    nx = -dx / length
+    ny = -dy / length
+    nz = dz / length
+
+    # Map [-1,1] to [0,255]
+    r = ((nx + 1.0) * 0.5 * 255).clip(0, 255).astype(np.uint8)
+    g = ((ny + 1.0) * 0.5 * 255).clip(0, 255).astype(np.uint8)
+    b = ((nz + 1.0) * 0.5 * 255).clip(0, 255).astype(np.uint8)
+
+    return Image.fromarray(np.stack([r, g, b], axis=-1))
+
+
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+    # Higher resolution textures for OmniPBR + RTX rendering
     textures = {
-        'ground_soil.png': ground_soil(1024),
-        'wall_polycarbonate.png': wall_polycarbonate(512),
-        'crop_leaves.png': crop_leaves(512, alt=False),
-        'crop_leaves_alt.png': crop_leaves(512, alt=True),
-        'crate_wood.png': crate_wood(256),
-        'rail_steel.png': rail_steel(256, 128),
+        'ground_soil.png': ground_soil(2048),
+        'wall_polycarbonate.png': wall_polycarbonate(1024),
+        'crop_leaves.png': crop_leaves(1024, alt=False),
+        'crop_leaves_alt.png': crop_leaves(1024, alt=True),
+        'crate_wood.png': crate_wood(512),
+        'rail_steel.png': rail_steel(512, 256),
     }
 
+    # Textures that benefit from normal maps (surfaces with visible depth)
+    normal_map_targets = [
+        'ground_soil.png',
+        'crop_leaves.png',
+        'crop_leaves_alt.png',
+        'crate_wood.png',
+        'rail_steel.png',
+    ]
+
+    saved = 0
     for name, img in textures.items():
         path = os.path.join(OUTPUT_DIR, name)
         img.save(path)
         print(f'  {name}: {img.size[0]}x{img.size[1]}')
+        saved += 1
 
-    print(f'\n{len(textures)} textures saved to {OUTPUT_DIR}')
+        if name in normal_map_targets:
+            base, ext = os.path.splitext(name)
+            normal_name = f'{base}_normal{ext}'
+            strength = 3.0 if 'soil' in name else 2.0
+            normal_img = generate_normal_map(img, strength=strength)
+            normal_path = os.path.join(OUTPUT_DIR, normal_name)
+            normal_img.save(normal_path)
+            print(f'  {normal_name}: {normal_img.size[0]}x{normal_img.size[1]} (normal map)')
+            saved += 1
+
+    print(f'\n{saved} textures saved to {OUTPUT_DIR}')
 
 
 if __name__ == '__main__':

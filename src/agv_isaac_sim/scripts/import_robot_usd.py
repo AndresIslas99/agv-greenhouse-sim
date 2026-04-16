@@ -38,45 +38,48 @@ ext_manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True
 
 import isaacsim.core.utils.stage as stage_utils
 
-# Paths
+# Paths — URDF lives inside agv_isaac_sim itself (no separate description package)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PACKAGE_DIR = os.path.dirname(SCRIPT_DIR)
-SIM_ROOT = os.path.dirname(PACKAGE_DIR)
-DESCRIPTION_PKG = os.path.join(SIM_ROOT, "agv_sim_description")
-MAIN_XACRO = os.path.join(DESCRIPTION_PKG, "urdf", "agv_sim.urdf.xacro")
+URDF_DIR = os.path.join(PACKAGE_DIR, "urdf")
+MAIN_XACRO = os.path.join(URDF_DIR, "agv_sim.urdf.xacro")
 OUTPUT_PATH = os.path.join(PACKAGE_DIR, "robot", "agv_sim.usd")
 TEMP_URDF = os.path.join(PACKAGE_DIR, "robot", "agv_sim_processed.urdf")
 
-# Robot parameters (from robot_params.yaml)
-WHEEL_RADIUS = 0.0625
-WHEEL_SEPARATION = 0.735
-ODOM_RATE = 50  # Hz
-JOINT_STATE_RATE = 50  # Hz
-CAMERA_RATE = 15  # Hz
-IMU_RATE = 100  # Hz
+# Robot parameters — calibrated 2026-04-08 (brain agv_odrive/config/odrive_params.yaml)
+WHEEL_RADIUS = 0.0781        # meters, diameter 156.2mm
+WHEEL_SEPARATION = 0.960     # meters, effective track width
+GEAR_RATIO = 10.0
+ODOM_RATE = 50               # Hz (matches real agv_odrive)
+JOINT_STATE_RATE = 50        # Hz
+CAMERA_RATE = 15             # Hz (ZED SDK)
+IMU_RATE = 200               # Hz (BMI088 in ZED 2i)
+
+# Camera mount — base_link → zed_camera_link (agv_geometry.yaml#camera_mount)
+CAMERA_MOUNT_XYZ = (0.70, 0.0, -0.055)
+CAMERA_STEREO_BASELINE = 0.12
 
 # Camera parameters (ZED 2i specs)
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
 CAMERA_HFOV = 110.0  # degrees (1.9199 rad)
 
-# IMU noise (matching Gazebo config)
+# IMU noise — BMI088 datasheet typical
 IMU_GYRO_NOISE = 0.00279   # rad/s stddev
 IMU_ACCEL_NOISE = 0.0314   # m/s² stddev
 
-# Topic names (matching TOPIC_CONTRACT.md)
+# Topic names — must match brain contract
 TOPICS = {
-    "cmd_vel": "/agv/shaped_cmd_vel",
-    "wheel_odom": "/agv/wheel_odom",
-    "joint_states": "/agv/joint_states",
-    "left_rgb": "/zed/zed_node/left/image_rect_color",
-    "left_depth": "/zed/zed_node/depth/depth_registered",
-    "left_camera_info": "/zed/zed_node/left/camera_info",
-    "left_pointcloud": "/zed/zed_node/point_cloud/cloud_registered",
-    "right_rgb": "/zed/zed_node/right/image_rect_color",
-    "right_camera_info": "/zed/zed_node/right/camera_info",
-    "imu": "/zed/zed_node/imu/data",
-    "imu_alt": "/agv/imu/data",
+    "cmd_vel":           "/agv/shaped_cmd_vel",
+    "wheel_odom":        "/agv/wheel_odom",
+    "joint_states":      "/agv/joint_states",
+    "imu":               "/agv/imu/data",
+    "left_rgb":          "/agv/zed/left/image_rect_color",
+    "left_depth":        "/agv/zed/depth/depth_registered",
+    "left_camera_info":  "/agv/zed/left/camera_info",
+    "left_pointcloud":   "/agv/zed/point_cloud/cloud_registered",
+    "right_rgb":         "/agv/zed/right/image_rect_color",
+    "right_camera_info": "/agv/zed/right/camera_info",
 }
 
 
@@ -404,6 +407,111 @@ def setup_physics_materials(stage, robot_path):
     print("  Wheels: μs=0.7/μd=0.6 (rubber on soil), Casters: μs=0.03/μd=0.025 (nylon)")
 
 
+def apply_visual_materials(stage, robot_path):
+    """Apply OmniPBR MDL materials to robot prims for RTX realism.
+
+    Only changes visual appearance — collision geometry, TF frames,
+    and inertial properties are preserved exactly as imported from URDF.
+    """
+    print("Applying OmniPBR visual materials to robot...")
+
+    # Import the material creator from the world primitives module
+    import sys
+    world_scripts = os.path.join(PACKAGE_DIR, "scripts")
+    if world_scripts not in sys.path:
+        sys.path.insert(0, world_scripts)
+    from world.primitives import create_omnipbr_material
+
+    MAT = f"{robot_path}/Materials"
+
+    # Chassis: brushed aluminum
+    mat_chassis = create_omnipbr_material(
+        stage, f"{MAT}/Chassis",
+        roughness=0.5, metallic=0.4,
+        diffuse_color=Gf.Vec3f(0.40, 0.42, 0.45),
+        specular_level=0.5)
+
+    # Wheels: matte black rubber
+    mat_wheel = create_omnipbr_material(
+        stage, f"{MAT}/Wheel",
+        roughness=0.9, metallic=0.0,
+        diffuse_color=Gf.Vec3f(0.08, 0.08, 0.08),
+        specular_level=0.1)
+
+    # Casters: painted steel
+    mat_caster = create_omnipbr_material(
+        stage, f"{MAT}/Caster",
+        roughness=0.6, metallic=0.3,
+        diffuse_color=Gf.Vec3f(0.30, 0.30, 0.30),
+        specular_level=0.4)
+
+    # ZED 2i camera body: dark anodized aluminum
+    mat_camera = create_omnipbr_material(
+        stage, f"{MAT}/Camera",
+        roughness=0.4, metallic=0.2,
+        diffuse_color=Gf.Vec3f(0.15, 0.15, 0.15),
+        specular_level=0.5)
+
+    # Bind materials to visual geometry
+    material_map = {
+        "base_link": mat_chassis,
+        "left_wheel": mat_wheel,
+        "right_wheel": mat_wheel,
+        "front_caster": mat_caster,
+        "rear_caster": mat_caster,
+        "zed_camera_link": mat_camera,
+    }
+
+    for link_name, material in material_map.items():
+        link_prim = stage.GetPrimAtPath(f"{robot_path}/{link_name}")
+        if link_prim:
+            # Bind to the link itself and any visual mesh children
+            UsdShade.MaterialBindingAPI.Apply(link_prim)
+            UsdShade.MaterialBindingAPI(link_prim).Bind(material)
+            for child in link_prim.GetAllChildren():
+                if child.IsA(UsdGeom.Gprim):
+                    UsdShade.MaterialBindingAPI.Apply(child)
+                    UsdShade.MaterialBindingAPI(child).Bind(material)
+
+    print("  Chassis: brushed aluminum (metallic=0.4)")
+    print("  Wheels: matte rubber (roughness=0.9)")
+    print("  ZED 2i: dark anodized aluminum (metallic=0.2)")
+
+
+def setup_camera_exposure(stage, robot_path):
+    """Configure fixed camera exposure matching real ZED 2i in greenhouse.
+
+    The real ZED 2i uses auto-exposure, but Isaac Sim's auto-exposure
+    algorithm differs. Fixed exposure tuned for greenhouse lighting
+    provides more consistent sim-to-real transfer.
+    """
+    print("Configuring camera exposure...")
+
+    for cam_name in ["ZedLeftCamera", "ZedRightCamera"]:
+        cam_prim = stage.GetPrimAtPath(f"{robot_path}/{cam_name}")
+        if not cam_prim:
+            # Try alternative paths
+            for prefix in ["zed_camera_link", "zed_camera_center",
+                          "zed_left_camera_frame", "zed_right_camera_frame"]:
+                cam_prim = stage.GetPrimAtPath(f"{robot_path}/{prefix}/{cam_name}")
+                if cam_prim:
+                    break
+
+        if cam_prim:
+            cam_prim.CreateAttribute(
+                "omni:camera:autoExposure", Sdf.ValueTypeNames.Bool).Set(False)
+            cam_prim.CreateAttribute(
+                "omni:camera:iso", Sdf.ValueTypeNames.Float).Set(200.0)
+            cam_prim.CreateAttribute(
+                "omni:camera:shutterSpeed", Sdf.ValueTypeNames.Float).Set(60.0)
+            cam_prim.CreateAttribute(
+                "omni:camera:motionBlur", Sdf.ValueTypeNames.Bool).Set(False)
+            cam_prim.CreateAttribute(
+                "omni:camera:fStop", Sdf.ValueTypeNames.Float).Set(0.0)  # no DoF
+
+    print("  Auto-exposure: OFF, ISO: 200, Shutter: 1/60s, Motion blur: OFF")
+
+
 def main():
     # Step 1: Process xacro
     urdf_path = process_xacro()
@@ -415,11 +523,21 @@ def main():
     # Step 3: Physics materials
     setup_physics_materials(stage, robot_path)
 
+    # Step 4: Visual materials (OmniPBR for RTX realism)
+    apply_visual_materials(stage, robot_path)
+
+    # Step 4b: Enhanced visual geometry (multi-panel chassis, wheel hubs)
+    from robot.visual_enhancements import enhance_robot_visuals
+    enhance_robot_visuals(stage, robot_path)
+
+    # Step 5: Camera exposure configuration
+    setup_camera_exposure(stage, robot_path)
+
     # OmniGraph (diff-drive, odometry, cameras, IMU) is configured at
     # runtime by setup_omnigraph.py because the ROS 2 bridge extension
     # requires the full Isaac Sim application with ROS 2 middleware.
 
-    # Step 4: Save
+    # Step 6: Save
     stage.GetRootLayer().Export(OUTPUT_PATH)
     print(f"\nRobot USD saved to: {OUTPUT_PATH}")
 

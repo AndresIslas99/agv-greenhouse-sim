@@ -1,11 +1,15 @@
-# Isaac Sim ROS 2 topic mapping reference
+# Isaac Sim ROS 2 topic contract — documentation only (not loaded).
 #
-# Isaac Sim 4.x publishes ROS 2 topics natively via OmniGraph.
-# This file documents the topic contract (same as gz_bridge.yaml).
-# No external bridge process needed — topics are configured in
-# import_robot_usd.py when setting up sensors and actuators.
+# Isaac Sim 4.x publishes ROS 2 topics natively via OmniGraph; the actual
+# wiring is done in scripts/setup_omnigraph.py. This file is a quick
+# reference that mirrors the brain's expected contract.
+#
+# Brain authoritative source:
+#   agv-greenhouse/specs/interfaces.yaml
+#   agv-greenhouse/src/agv_bringup/launch/agv_hil_full.launch.py (header)
 
-# --- Sim → ROS (sensor data) ---
+# ── Sim → brain (hardware emulation) ──────────────────────────────────────
+
 clock:
   topic: /clock
   type: rosgraph_msgs/msg/Clock
@@ -15,68 +19,136 @@ wheel_odom:
   topic: /agv/wheel_odom
   type: nav_msgs/msg/Odometry
   rate: 50
-  note: "Wheel friction calibrated: μs=0.7/μd=0.6 (rubber on soil)"
   frame_id: odom
   child_frame_id: base_link
-  source: DifferentialController
+  source: OmniGraph DifferentialController
+  note: "Covariance zero — brain's covariance_override_node patches in HIL."
 
 joint_states:
   topic: /agv/joint_states
   type: sensor_msgs/msg/JointState
   rate: 50
-  source: JointStatePublisher
+  source: OmniGraph JointStatePublisher
+
+imu_clean:
+  topic: /agv/imu/data_clean
+  type: sensor_msgs/msg/Imu
+  rate: 200
+  frame_id: imu_link
+  source: OmniGraph IsaacReadIMU
 
 imu:
-  topic: /zed/zed_node/imu/data
+  topic: /agv/imu/data
   type: sensor_msgs/msg/Imu
-  rate: 100
+  rate: 200
   frame_id: imu_link
-  source: IsaacIMU
-  # Also published as /agv/imu/data
+  source: isaac_ros_bridge_node (bias drift relay from imu/data_clean)
 
 left_rgb:
-  topic: /zed/zed_node/left/image_rect_color
+  topic: /agv/zed/left/image_rect_color
   type: sensor_msgs/msg/Image
   rate: 15
-  frame_id: zed_left_camera_frame_optical
-  source: IsaacCamera (left)
-
-left_depth:
-  topic: /zed/zed_node/depth/depth_registered
-  type: sensor_msgs/msg/Image
-  rate: 15
-  frame_id: zed_left_camera_frame_optical
-  source: IsaacCamera (left, depth output)
+  frame_id: zed_left_camera_frame
+  source: OmniGraph IsaacCamera (left)
 
 left_camera_info:
-  topic: /zed/zed_node/left/camera_info
+  topic: /agv/zed/left/camera_info
   type: sensor_msgs/msg/CameraInfo
   rate: 15
-  source: IsaacCamera (left)
+  frame_id: zed_left_camera_frame
+  source: OmniGraph IsaacCamera (left)
 
 right_rgb:
-  topic: /zed/zed_node/right/image_rect_color
+  topic: /agv/zed/right/image_rect_color
   type: sensor_msgs/msg/Image
   rate: 15
-  frame_id: zed_right_camera_frame_optical
-  source: IsaacCamera (right)
+  frame_id: zed_right_camera_frame
+  source: OmniGraph IsaacCamera (right)
 
 right_camera_info:
-  topic: /zed/zed_node/right/camera_info
+  topic: /agv/zed/right/camera_info
   type: sensor_msgs/msg/CameraInfo
   rate: 15
-  source: IsaacCamera (right)
+  frame_id: zed_right_camera_frame
+  source: OmniGraph IsaacCamera (right)
+
+depth_clean:
+  topic: /agv/zed/depth/depth_clean
+  type: sensor_msgs/msg/Image
+  rate: 15
+  frame_id: zed_left_camera_frame
+  source: OmniGraph IsaacCamera (left depth output)
+
+depth_registered:
+  topic: /agv/zed/depth/depth_registered
+  type: sensor_msgs/msg/Image
+  rate: 15
+  frame_id: zed_left_camera_frame
+  source: sim_depth_noise (distance-dependent noise relay from depth_clean)
 
 point_cloud:
-  topic: /zed/zed_node/point_cloud/cloud_registered
+  topic: /agv/zed/point_cloud/cloud_registered
   type: sensor_msgs/msg/PointCloud2
   rate: 15
-  frame_id: zed_left_camera_frame_optical
-  source: IsaacCamera (left, point cloud output)
+  frame_id: zed_left_camera_frame
+  source: OmniGraph IsaacCamera (left point cloud output)
 
-# --- ROS → Sim (commands) ---
+motor_state:
+  topic: /agv/motor_state
+  type: std_msgs/msg/String (JSON)
+  rate: 10
+  source: sim_motor_gate
+
+drive_debug:
+  topic: /agv/drive_debug
+  type: std_msgs/msg/String (JSON)
+  rate: 10
+  source: sim_motor_gate
+
+scan:
+  topic: /agv/scan
+  type: sensor_msgs/msg/LaserScan
+  rate: 10
+  frame_id: base_link
+  source: pointcloud_to_laserscan (sim-side in HIL mode, identical to brain production params)
+  enabled_in: isaac_hil.launch.py
+
+visual_slam_odometry:
+  topic: /visual_slam/tracking/odometry
+  type: nav_msgs/msg/Odometry
+  rate: 50
+  frame_id: map
+  child_frame_id: base_link
+  source: sim_global_odom (wheel_odom relay — HIL cuVSLAM replacement)
+  enabled_in: isaac_hil.launch.py
+  notes: |
+    Brain's ekf_global consumes as odom1 with differential:true, so absolute
+    drift does not matter — only per-tick deltas. Not published in teleop mode.
+
+# ── Brain → sim (control) ─────────────────────────────────────────────────
+
 cmd_vel:
+  topic: /agv/cmd_vel
+  type: geometry_msgs/msg/Twist
+  direction: subscribe
+  consumer: sim_motor_gate (→ cmd_vel_armed → sim_drive_shaping_node → /agv/shaped_cmd_vel)
+  note: "In has_map mode, also accept /agv/cmd_vel_safe via topic_tools relay."
+
+motor_enable:
+  topic: /agv/motor_enable
+  type: std_msgs/msg/Bool
+  direction: subscribe
+  consumer: sim_motor_gate
+
+e_stop:
+  topic: /agv/e_stop
+  type: std_msgs/msg/Bool
+  direction: subscribe
+  consumer: sim_motor_gate
+
+shaped_cmd_vel:
   topic: /agv/shaped_cmd_vel
   type: geometry_msgs/msg/Twist
   direction: subscribe
-  source: DifferentialController
+  consumer: OmniGraph DifferentialController
+  note: "Internal sim topic — produced by sim_drive_shaping_node."

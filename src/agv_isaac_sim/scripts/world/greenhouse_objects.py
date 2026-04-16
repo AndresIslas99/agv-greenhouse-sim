@@ -2,7 +2,7 @@
 
 from pxr import UsdGeom, UsdPhysics, UsdShade, Sdf, Gf
 
-from .primitives import create_box, create_pbr_material
+from .primitives import create_box, create_pbr_material, create_omnipbr_material
 from .config import tag_texture_path
 
 
@@ -45,18 +45,22 @@ def create_apriltags(stage, materials, cfg):
     """Create all AprilTag markers, wall-mounted with backing plates."""
     UsdGeom.Xform.Define(stage, "/World/AprilTags")
 
-    # White material for backing plates
-    white_mat = create_pbr_material(
-        stage, "/World/Materials/TagBacking", "", roughness=1.0)
+    # White material for backing plates (OmniPBR, zero specular for detection)
+    white_mat = create_omnipbr_material(
+        stage, "/World/Materials/TagBacking",
+        roughness=1.0, metallic=0.0, specular_level=0.0,
+        diffuse_color=Gf.Vec3f(0.95, 0.95, 0.95))
 
-    # Tag materials (per ID)
+    # Tag materials (per ID, OmniPBR with raw colorspace for sharp B/W)
     tag_materials = {}
     for tag_cfg in cfg["apriltags"]["tags"]:
         tid = tag_cfg["id"]
         if tid not in tag_materials:
             tex = tag_texture_path(cfg, tid)
-            tag_materials[tid] = create_pbr_material(
-                stage, f"/World/Materials/AprilTag{tid}", tex, roughness=1.0)
+            tag_materials[tid] = create_omnipbr_material(
+                stage, f"/World/Materials/AprilTag{tid}",
+                albedo_texture=tex, roughness=1.0, metallic=0.0,
+                specular_level=0.0, source_color_space="raw")
 
     # Create each tag
     for tag_cfg in cfg["apriltags"]["tags"]:

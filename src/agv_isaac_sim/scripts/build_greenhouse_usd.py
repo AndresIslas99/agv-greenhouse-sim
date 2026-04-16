@@ -2,21 +2,26 @@
 """Procedural USD world builder for the AGV greenhouse simulation.
 
 Run inside Isaac Sim standalone Python:
-    python3 build_greenhouse_usd.py
+    isaacsim --exec build_greenhouse_usd.py
 
-Recreates greenhouse_simple.sdf as a USD stage with full SDF parity:
-- Ground plane (49×19m, soil texture)
-- 4 enclosure walls (3m high, polycarbonate)
-- 12 crop rows: 6 front (X=17.5) + 6 rear (X=-6.5)
-- 20 heating pipe rails: 10 front + 10 rear (51mm cylinders)
-- 7 roof beams (steel)
-- 36 AprilTag markers (tag36h11, two-layer: white border + textured tag)
-- 3 static crate obstacles
-- 3 lights (sun, fill, ambient dome)
+Builds a photorealistic greenhouse USD stage:
+- Ground plane (49x19m, OmniPBR soil with normal maps)
+- 4 enclosure walls (3m, OmniGlass polycarbonate or opaque fallback)
+- 12 crop rows: 6 front (X=17.5) + 6 rear (X=-6.5), OmniPBR leaf materials
+- 20 heating pipe rails: 10 front + 10 rear (OmniPBR metallic steel)
+- 7 roof beams (OmniPBR galvanized steel)
+- 36 AprilTag markers (OmniPBR, zero specular, raw colorspace)
+- 3 static crate obstacles (OmniPBR wood)
+- HDRI dome + sun + fill + supplemental rect lights
+- NVIDIA asset props (pallets, containers via USD references)
 - PhysX scene (1ms timestep, GPU broadphase)
+
+Environment variables:
+    AGV_GLASS_WALLS=0  — disable glass walls for faster rendering
 """
 
 import os
+import sys
 import math
 
 from isaacsim import SimulationApp
@@ -28,16 +33,21 @@ from pxr import Usd, UsdGeom, UsdPhysics, UsdShade, Sdf, Gf, Vt, UsdLux
 
 # ── Paths ─────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Ensure the world package (world/) is importable
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 PACKAGE_DIR = os.path.dirname(SCRIPT_DIR)
-WORLDS_PKG = os.path.join(os.path.dirname(PACKAGE_DIR), "agv_sim_worlds")
-TEXTURES_DIR = os.path.join(WORLDS_PKG, "models", "textures")
+# Assets now live inside agv_isaac_sim (no separate package)
+ASSETS_DIR = os.path.join(PACKAGE_DIR, "assets")
+TEXTURES_DIR = os.path.join(ASSETS_DIR, "greenhouse_textures")
+TAG_TEXTURES_DIR = os.path.join(ASSETS_DIR, "tag_textures")
 OUTPUT_PATH = os.path.join(PACKAGE_DIR, "worlds", "greenhouse_simple.usd")
 
 
 def tag_texture_path(tag_id):
-    """Resolve AprilTag texture path: models/apriltag_N/textures/tag36h11_idN.png"""
-    return os.path.join(WORLDS_PKG, "models", f"apriltag_{tag_id}",
-                        "textures", f"tag36h11_id{tag_id}.png")
+    """Resolve AprilTag texture path from agv_isaac_sim/assets/tag_textures."""
+    return os.path.join(TAG_TEXTURES_DIR, f"tag36h11_id{tag_id}.png")
 
 
 # ── Geometry Data (from greenhouse_simple.sdf) ────────────────────
@@ -150,37 +160,58 @@ def create_physics_scene(stage):
     physx_scene.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(1000)
 
 
-def create_pbr_material(stage, mat_path, texture_file, metallic=0.0, roughness=0.8,
-                        diffuse_color=None):
-    """Create a PBR material with an albedo texture or solid color.
+def _resolve_normal_path(albedo_path):
+    """Derive the normal map path from an albedo texture path.
 
+    Convention: ground_soil.png -> ground_soil_normal.png
+    Returns the path if the file exists, else None.
+    """
+    if not albedo_path:
+        return None
+    base, ext = os.path.splitext(albedo_path)
+    normal_path = f"{base}_normal{ext}"
+    return normal_path if os.path.exists(normal_path) else None
+
+
+def make_material(stage, mat_path, texture_file, metallic=0.0, roughness=0.8,
+                  diffuse_color=None, specular_level=0.5,
+                  emissive_intensity=0.0, source_color_space="auto"):
+    """Create an OmniPBR MDL material (primary) for RTX rendering.
+
+    Automatically picks up a companion *_normal.png if present.
     Texture paths are stored relative to the USD file for portability.
     """
-    material = UsdShade.Material.Define(stage, mat_path)
-    shader = UsdShade.Shader.Define(stage, f"{mat_path}/Shader")
-    shader.CreateIdAttr("UsdPreviewSurface")
-    shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(metallic)
-    shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(roughness)
+    from world.primitives import create_omnipbr_material
 
-    if texture_file and os.path.exists(texture_file):
-        # Use relative path from USD file location for portability
-        rel_path = os.path.relpath(texture_file, os.path.dirname(OUTPUT_PATH))
+    normal_tex = _resolve_normal_path(texture_file)
+    output_dir = os.path.dirname(OUTPUT_PATH)
 
-        tex_reader = UsdShade.Shader.Define(stage, f"{mat_path}/DiffuseTexture")
-        tex_reader.CreateIdAttr("UsdUVTexture")
-        tex_reader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(f"./{rel_path}")
-        tex_reader.CreateInput("wrapS", Sdf.ValueTypeNames.Token).Set("repeat")
-        tex_reader.CreateInput("wrapT", Sdf.ValueTypeNames.Token).Set("repeat")
-        tex_reader.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
-        shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(
-            tex_reader.ConnectableAPI(), "rgb")
-    elif diffuse_color is not None:
-        shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(diffuse_color)
-    else:
-        shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.5, 0.5, 0.5))
+    return create_omnipbr_material(
+        stage, mat_path,
+        albedo_texture=texture_file if (texture_file and os.path.exists(texture_file)) else None,
+        normal_texture=normal_tex,
+        roughness=roughness,
+        metallic=metallic,
+        diffuse_color=diffuse_color,
+        specular_level=specular_level,
+        emissive_intensity=emissive_intensity,
+        source_color_space=source_color_space,
+        output_path=output_dir,
+    )
 
-    material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
-    return material
+
+def make_glass_material(stage, mat_path, ior=1.59, glass_color=None,
+                        frosting_roughness=0.3, thin_walled=True):
+    """Create an OmniGlass MDL material for transparent surfaces."""
+    from world.primitives import create_omniglass_material
+
+    return create_omniglass_material(
+        stage, mat_path,
+        ior=ior,
+        glass_color=glass_color,
+        frosting_roughness=frosting_roughness,
+        thin_walled=thin_walled,
+    )
 
 
 def _box_mesh_data(sx, sy, sz):
@@ -340,49 +371,63 @@ def build_greenhouse(stage):
     # Physics scene
     create_physics_scene(stage)
 
-    # ── Materials ──────────────────────────────────────────────
+    # ── Materials (OmniPBR MDL for RTX rendering) ──────────────
     M = "/World/Materials"
 
-    mat_soil = create_pbr_material(
+    mat_soil = make_material(
         stage, f"{M}/Soil",
         os.path.join(TEXTURES_DIR, "ground_soil.png"),
         roughness=0.95)
 
-    mat_wall = create_pbr_material(
-        stage, f"{M}/Polycarbonate",
-        os.path.join(TEXTURES_DIR, "wall_polycarbonate.png"),
-        roughness=0.65)
+    # Walls: OmniGlass (polycarbonate, IoR 1.59, frosted) or opaque fallback
+    ENABLE_GLASS_WALLS = os.environ.get("AGV_GLASS_WALLS", "1") == "1"
+    if ENABLE_GLASS_WALLS:
+        mat_wall = make_glass_material(
+            stage, f"{M}/Polycarbonate",
+            ior=1.59,
+            glass_color=Gf.Vec3f(0.92, 0.95, 0.90),
+            frosting_roughness=0.35,
+            thin_walled=True)
+        print("  Walls: OmniGlass (polycarbonate, frosted)")
+    else:
+        mat_wall = make_material(
+            stage, f"{M}/Polycarbonate",
+            os.path.join(TEXTURES_DIR, "wall_polycarbonate.png"),
+            roughness=0.65)
+        print("  Walls: OmniPBR (opaque fallback)")
 
-    mat_crop_a = create_pbr_material(
+    mat_crop_a = make_material(
         stage, f"{M}/CropLeaves",
         os.path.join(TEXTURES_DIR, "crop_leaves.png"),
-        roughness=0.9)
+        roughness=0.9, specular_level=0.2)
 
-    mat_crop_b = create_pbr_material(
+    mat_crop_b = make_material(
         stage, f"{M}/CropLeavesAlt",
         os.path.join(TEXTURES_DIR, "crop_leaves_alt.png"),
-        roughness=0.9)
+        roughness=0.9, specular_level=0.2)
 
-    mat_rail = create_pbr_material(
+    mat_rail = make_material(
         stage, f"{M}/Steel",
         os.path.join(TEXTURES_DIR, "rail_steel.png"),
-        metallic=0.3, roughness=0.6)
+        metallic=0.85, roughness=0.35)
 
-    mat_crate = create_pbr_material(
+    mat_crate = make_material(
         stage, f"{M}/CrateWood",
         os.path.join(TEXTURES_DIR, "crate_wood.png"),
         roughness=0.85)
 
-    mat_beam = create_pbr_material(
+    mat_beam = make_material(
         stage, f"{M}/SteelBeam", "",
-        metallic=0.5, roughness=0.4)
+        metallic=0.7, roughness=0.4,
+        diffuse_color=Gf.Vec3f(0.6, 0.6, 0.62))
 
-    # AprilTag border material (white, perfectly matte)
-    mat_tag_border = create_pbr_material(
+    # AprilTag border material (white, perfectly matte, zero specular)
+    mat_tag_border = make_material(
         stage, f"{M}/TagBorder", "",
-        roughness=1.0, diffuse_color=Gf.Vec3f(1.0, 1.0, 1.0))
+        roughness=1.0, metallic=0.0, specular_level=0.0,
+        diffuse_color=Gf.Vec3f(0.95, 0.95, 0.95))
 
-    # AprilTag texture materials (one per tag ID used)
+    # AprilTag texture materials (one per tag ID, matte + raw colorspace)
     tag_ids_needed = sorted(set(t[0] for t in APRILTAG_PLACEMENTS))
     tag_materials = {}
     print(f"\n  AprilTag textures ({len(tag_ids_needed)} tags):")
@@ -390,9 +435,11 @@ def build_greenhouse(stage):
         tex_path = tag_texture_path(tag_id)
         exists = os.path.exists(tex_path)
         print(f"    Tag {tag_id:2d}: {'OK' if exists else 'MISSING'} -> {tex_path}")
-        tag_materials[tag_id] = create_pbr_material(
+        tag_materials[tag_id] = make_material(
             stage, f"{M}/AprilTag{tag_id}",
-            tex_path, roughness=1.0)  # matte for optimal detection contrast
+            tex_path, roughness=1.0, metallic=0.0,
+            specular_level=0.0,
+            source_color_space="raw")  # raw prevents sRGB gamma on B/W data
 
     # ── Ground Plane ──────────────────────────────────────────
     create_box(stage, "/World/Ground",
@@ -477,28 +524,26 @@ def build_greenhouse(stage):
                    rotation_deg=(0.0, 0.0, yaw_deg),
                    material=mat_crate)
 
-    # ── Lighting ──────────────────────────────────────────────
-    UsdGeom.Xform.Define(stage, "/World/Lights")
+    # ── Lighting (HDRI dome + sun + fill + supplemental rect lights) ──
+    from world.greenhouse_lighting import create_lighting
+    import yaml
 
-    # Sun (reduced for greenhouse — light diffused by polycarbonate roof)
-    sun = UsdLux.DistantLight.Define(stage, "/World/Lights/Sun")
-    sun.CreateIntensityAttr(1200.0)
-    sun.CreateColorAttr(Gf.Vec3f(1.0, 0.98, 0.92))  # warm daylight 5500K
-    sun.CreateAngleAttr(1.0)                          # wider = softer shadows
-    sun_xform = UsdGeom.Xformable(sun.GetPrim())
-    sun_xform.AddRotateXYZOp().Set(Gf.Vec3f(-64.0, -27.0, 0.0))
+    config_path = os.path.join(PACKAGE_DIR, "config", "world_config.yaml")
+    with open(config_path) as f:
+        world_cfg = yaml.safe_load(f)
 
-    # Fill light (cool tone for contrast)
-    fill = UsdLux.DistantLight.Define(stage, "/World/Lights/Fill")
-    fill.CreateIntensityAttr(600.0)
-    fill.CreateColorAttr(Gf.Vec3f(0.45, 0.45, 0.48))
-    fill_xform = UsdGeom.Xformable(fill.GetPrim())
-    fill_xform.AddRotateXYZOp().Set(Gf.Vec3f(-45.0, 30.0, 0.0))
+    # Resolve HDRI path if configured (relative to textures/ dir)
+    hdri_rel = world_cfg["lighting"]["ambient_dome"].get("hdri", "")
+    if hdri_rel and not os.path.isabs(hdri_rel):
+        hdri_abs = os.path.join(PACKAGE_DIR, "textures", hdri_rel)
+        if os.path.exists(hdri_abs):
+            world_cfg["lighting"]["ambient_dome"]["hdri"] = hdri_abs
 
-    # Ambient dome (primary light in greenhouse — roof-diffused daylight)
-    dome = UsdLux.DomeLight.Define(stage, "/World/Lights/AmbientDome")
-    dome.CreateIntensityAttr(500.0)
-    dome.CreateColorAttr(Gf.Vec3f(0.3, 0.3, 0.28))
+    create_lighting(stage, world_cfg)
+
+    # ── NVIDIA Asset Props (pallets, containers, etc.) ──────────
+    from world.nvidia_assets import add_props
+    add_props(stage, world_cfg)
 
 
 def main():

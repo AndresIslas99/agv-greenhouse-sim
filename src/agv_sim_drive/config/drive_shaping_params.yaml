@@ -1,16 +1,20 @@
-# ODrive-realistic wheel shaping parameters
-# Values from the real robot's odrive_params.yaml (measured 2026-03-18)
+# ODrive-realistic wheel shaping parameters.
+#
+# Values MUST match the real agv_odrive/config/odrive_params.yaml
+# (calibrated 2026-04-08). When the brain's odrive_params.yaml changes,
+# update this file in lock-step.
 /**/sim_drive_shaping_node:
   ros__parameters:
-    wheel_radius: 0.0625         # meters (125mm diameter wheels)
-    track_width: 0.735           # meters (center-to-center)
-    gear_ratio: 10.0             # motor-to-wheel reduction (10:1)
+    wheel_radius: 0.0781         # meters (diameter 156.2mm)
+    track_width: 0.960           # meters (effective, calibrated)
+    gear_ratio: 10.0             # 10:1 planetary
     publish_rate_hz: 50
-    cmd_vel_timeout_ms: 500      # stop if no cmd_vel for this long
-    invert_left: false
-    invert_right: false           # false for sim (Gz DiffDrive handles wheel direction)
+    cmd_vel_timeout_ms: 200      # stop if no cmd_vel for this long (brain value)
+    invert_left: true            # CAN 0 direction (matches real robot)
+    invert_right: false          # CAN 1
     left_scale: 1.0
     right_scale: 1.0
     zero_vel_epsilon: 0.03       # turns/s — below this, send exact zero
-    min_effective_vel: 0.0       # turns/s — disabled (set >0 to enable stiction compensation)
-    max_wheel_accel: 1.0         # turns/s² — conservative rate limiter per wheel
+    min_effective_vel: 0.0       # turns/s — disabled (no stiction compensation)
+    max_wheel_accel: 0.5         # turns/s² — gentler ramp reduces wheel slip
+    max_wheel_decel: 1.5         # turns/s² — 3x faster decel for responsive stopping

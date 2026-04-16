@@ -6,10 +6,11 @@
 # - Packed greenhouse soil: μs=0.8, μd=0.6
 
 physics:
-  timestep: 0.001                # 1ms per step (1000Hz internal)
+  timestep: 0.005                # 5ms per step (200Hz) — matches real BMI088 IMU rate
   gpu_broadphase: true           # GPU collision detection
   gpu_dynamics: true             # GPU rigid body solver
-  solver_iterations: 12          # Position iterations — 4 was too low for contact-heavy greenhouse
+  solver_type: "TGS"             # Temporal Gauss-Seidel (more stable than PGS for robots)
+  solver_iterations: 8           # Position iterations (TGS: 8 gives good stability at 200Hz)
   real_time_factor: 1.0          # Wall-clock matched (critical for HIL)
   gravity: [0.0, 0.0, -9.81]
 

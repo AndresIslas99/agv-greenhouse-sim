@@ -4,40 +4,48 @@
 Run inside the full Isaac Sim application (not standalone headless):
     isaacsim --exec setup_omnigraph.py
 
-This script requires the ROS 2 bridge and sensor extensions to be loaded,
-which are available in the full Isaac Sim application but not in standalone
-headless mode.
+Sets up the brain-facing topic contract. Physical parameters match
+agv_odrive/config/odrive_params.yaml (calibrated 2026-04-08).
 
-Sets up:
-- Differential drive controller (subscribes to /agv/shaped_cmd_vel)
-- Odometry publisher (/agv/wheel_odom + TF)
-- Joint state publisher (/agv/joint_states)
-- ZED 2i stereo cameras (left: depth+RGB+pointcloud, right: RGB)
-- IMU sensor (/zed/zed_node/imu/data)
+Publishes:
+- /agv/wheel_odom          50 Hz, frame odom → base_link
+- /agv/joint_states        50 Hz
+- /agv/imu/data            200 Hz, frame imu_link
+- /agv/zed/left/image_rect_color, camera_info    15 Hz
+- /agv/zed/right/image_rect_color, camera_info   15 Hz
+- /agv/zed/depth/depth_registered                15 Hz
+- /agv/zed/point_cloud/cloud_registered          15 Hz
+
+Subscribes:
+- /agv/shaped_cmd_vel      (output of sim_drive_shaping_node)
 """
 
 import omni.graph.core as og
 import omni.usd
 
-# Robot parameters (from robot_params.yaml)
-WHEEL_RADIUS = 0.0625
-WHEEL_SEPARATION = 0.735
+# Robot parameters — calibrated 2026-04-08 (agv_odrive/config/odrive_params.yaml)
+WHEEL_RADIUS = 0.0781
+WHEEL_SEPARATION = 0.960
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
 CAMERA_HFOV = 110.0
 
-# Topic names (matching TOPIC_CONTRACT.md)
+# Topic names. For the two sensors that need realism relays (IMU → bias drift,
+# depth → distance-dependent noise), OmniGraph publishes to a `_clean` topic
+# that the relay reads and republishes on the final brain-facing name. Cameras
+# are already rectified in the ZED SDK real pipeline, so they go straight to
+# the final topic name without any relay.
 TOPICS = {
-    "cmd_vel": "/agv/shaped_cmd_vel",
-    "wheel_odom": "/agv/wheel_odom",
-    "joint_states": "/agv/joint_states",
-    "left_rgb": "/zed/zed_node/left/image_rect_color",
-    "left_depth": "/zed/zed_node/depth/depth_registered",
-    "left_camera_info": "/zed/zed_node/left/camera_info",
-    "left_pointcloud": "/zed/zed_node/point_cloud/cloud_registered",
-    "right_rgb": "/zed/zed_node/right/image_rect_color",
-    "right_camera_info": "/zed/zed_node/right/camera_info",
-    "imu": "/zed/zed_node/imu/data",
+    "cmd_vel":           "/agv/shaped_cmd_vel",
+    "wheel_odom":        "/agv/wheel_odom",
+    "joint_states":      "/agv/joint_states",
+    "imu":               "/agv/imu/data_clean",           # → isaac_ros_bridge_node → /agv/imu/data
+    "left_depth":        "/agv/zed/depth/depth_clean",    # → sim_depth_noise → /agv/zed/depth/depth_registered
+    "left_rgb":          "/agv/zed/left/image_rect_color",
+    "left_camera_info":  "/agv/zed/left/camera_info",
+    "left_pointcloud":   "/agv/zed/point_cloud/cloud_registered",
+    "right_rgb":         "/agv/zed/right/image_rect_color",
+    "right_camera_info": "/agv/zed/right/camera_info",
 }
 
 ROBOT_PATH = "/agv"
@@ -106,6 +114,7 @@ def setup_odometry_publisher():
             ],
             keys.CONNECT: [
                 ("OnPlaybackTick.outputs:tick", "ComputeOdom.inputs:execIn"),
+                ("OnPlaybackTick.outputs:tick", "ReadSimTime.inputs:execIn"),
                 ("ComputeOdom.outputs:execOut", "PublishOdom.inputs:execIn"),
                 ("ComputeOdom.outputs:position", "PublishOdom.inputs:position"),
                 ("ComputeOdom.outputs:orientation", "PublishOdom.inputs:orientation"),
@@ -143,6 +152,7 @@ def setup_joint_state_publisher():
             ],
             keys.CONNECT: [
                 ("OnPlaybackTick.outputs:tick", "PublishJointStates.inputs:execIn"),
+                ("OnPlaybackTick.outputs:tick", "ReadSimTime.inputs:execIn"),
                 ("Context.outputs:context", "PublishJointStates.inputs:context"),
                 ("ReadSimTime.outputs:simulationTime", "PublishJointStates.inputs:timeStamp"),
             ],
@@ -239,7 +249,7 @@ def setup_imu():
                 ("PublishIMU", "isaacsim.ros2.bridge.ROS2PublishImu"),
             ],
             keys.SET_VALUES: [
-                ("IsaacReadIMU.inputs:imuPrim", f"{ROBOT_PATH}/imu_link"),
+                ("IsaacReadIMU.inputs:imuPrim", f"{ROBOT_PATH}/base_link/ImuSensor"),
                 ("PublishIMU.inputs:topicName", TOPICS["imu"]),
                 ("PublishIMU.inputs:frameId", "imu_link"),
             ],

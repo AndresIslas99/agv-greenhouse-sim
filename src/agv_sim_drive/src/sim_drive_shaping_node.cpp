@@ -6,12 +6,13 @@
 namespace agv_sim_drive {
 
 SimDriveShapingNode::SimDriveShapingNode() : Node("sim_drive_shaping_node") {
-  // Declare parameters (matching real odrive_params.yaml)
-  this->declare_parameter("wheel_radius", 0.0625);
-  this->declare_parameter("track_width", 0.735);
+  // Declare parameters (calibrated defaults matching real odrive_params.yaml
+  // from agv-greenhouse). Overridden by config/drive_shaping_params.yaml.
+  this->declare_parameter("wheel_radius", 0.0781);
+  this->declare_parameter("track_width", 0.960);
   this->declare_parameter("publish_rate_hz", 50);
-  this->declare_parameter("cmd_vel_timeout_ms", 500);
-  this->declare_parameter("invert_left", false);
+  this->declare_parameter("cmd_vel_timeout_ms", 200);
+  this->declare_parameter("invert_left", true);
   this->declare_parameter("invert_right", false);
   this->declare_parameter("left_scale", 1.0);
   this->declare_parameter("right_scale", 1.0);

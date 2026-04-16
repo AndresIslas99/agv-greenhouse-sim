@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<!--
+  AGV Simulation URDF — matches the real robot's calibrated physical params.
+
+  Authoritative source for physical values: the real robot brain at
+  https://github.com/AndresIslas99/agv-greenhouse
+    src/agv_bringup/config/robot/agv_geometry.yaml
+    src/agv_odrive/config/odrive_params.yaml
+
+  Differences from the brain's own URDF (agv_description/urdf/agv_full.urdf.xacro):
+  - Uses the CALIBRATED values from odrive_params.yaml (wheel_radius=0.0781,
+    track_width=0.960). The brain's URDF still has stale defaults pending
+    migration; this file uses the values the real ODrive actually runs with.
+  - Adds front/rear casters so Isaac PhysX keeps the chassis stable in standalone
+    mode. The brain URDF has no casters; in HIL the brain's robot_state_publisher
+    is authoritative and this file is not loaded.
+
+  TF chain (standalone):
+    base_link
+      ├── left_wheel     (continuous joint)
+      ├── right_wheel    (continuous joint)
+      ├── base_footprint (fixed, z=-0.200)
+      ├── front_caster   (fixed — Isaac stability only, brain ignores)
+      └── rear_caster    (fixed — Isaac stability only, brain ignores)
+
+  Camera and IMU frames are NOT in this URDF. They are published as static
+  transforms by isaac_sim.launch.py (standalone) or by the brain's
+  agv_slam.launch.py (HIL). See:
+    src/agv_isaac_sim/launch/isaac_sim.launch.py
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="agv">
+
+  <!-- Calibrated parameters (2026-04-08). Do not change without re-measuring. -->
+  <xacro:arg name="wheel_radius"   default="0.0781"/>
+  <xacro:arg name="left_wheel_y"   default="0.480"/>
+  <xacro:arg name="right_wheel_y"  default="-0.480"/>
+  <xacro:arg name="wheel_z"        default="-0.1219"/>
+  <xacro:arg name="wheel_width"    default="0.05"/>
+
+  <xacro:include filename="$(find agv_isaac_sim)/urdf/agv_base.xacro"/>
+  <xacro:include filename="$(find agv_isaac_sim)/urdf/wheel.xacro"/>
+  <xacro:include filename="$(find agv_isaac_sim)/urdf/caster.xacro"/>
+
+  <xacro:wheel
+    name="left"
+    x="0"
+    y="$(arg left_wheel_y)"
+    z="$(arg wheel_z)"
+    radius="$(arg wheel_radius)"
+    width="$(arg wheel_width)"/>
+
+  <xacro:wheel
+    name="right"
+    x="0"
+    y="$(arg right_wheel_y)"
+    z="$(arg wheel_z)"
+    radius="$(arg wheel_radius)"
+    width="$(arg wheel_width)"/>
+
+  <!-- Casters: Isaac PhysX stability only. Small passive rollers. -->
+  <xacro:caster name="front" x="0.45" y="0" radius="0.04"/>
+  <xacro:caster name="rear"  x="-0.25" y="0" radius="0.04"/>
+
+</robot>
