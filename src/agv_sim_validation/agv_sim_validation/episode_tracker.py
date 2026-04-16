@@ -17,6 +17,10 @@ Per-episode metrics:
 """
 import json
 import math
+import os
+import shutil
+import signal
+import subprocess
 import time
 
 import rclpy
@@ -28,12 +32,46 @@ from std_msgs.msg import String
 from action_msgs.msg import GoalStatusArray
 
 
+# Topics included in every per-episode bag. Image topics are excluded by
+# default because they're megabytes per second and rarely needed for analysis.
+BASE_BAG_TOPICS = [
+    '/clock',
+    '/tf', '/tf_static',
+    '/agv/cmd_vel', '/agv/cmd_vel_armed', '/agv/shaped_cmd_vel',
+    '/agv/wheel_odom', '/agv/joint_states',
+    '/agv/imu/data', '/agv/imu/data_clean',
+    '/agv/odometry/local', '/agv/odometry/global',
+    '/agv/scan',
+    '/visual_slam/tracking/odometry',
+    '/agv/motor_state', '/agv/drive_debug', '/agv/motor_enable', '/agv/e_stop',
+    '/agv/sim/ground_truth/pose', '/agv/sim/ground_truth/twist',
+    '/agv/sim/localization_error', '/agv/sim/events', '/agv/sim/episode_summary',
+    '/agv/navigate_to_pose/_action/status',
+]
+
+IMAGE_BAG_TOPICS = [
+    '/agv/zed/left/image_rect_color', '/agv/zed/left/camera_info',
+    '/agv/zed/depth/depth_registered',
+    '/agv/zed/point_cloud/cloud_registered',
+]
+
+
 class EpisodeTracker(Node):
     def __init__(self):
         super().__init__('episode_tracker')
 
         self.declare_parameter('success_position_tol_m', 0.30)
         self.declare_parameter('success_yaw_tol_rad', 0.30)
+        self.declare_parameter('bag_dir', '/tmp/agv_runs')
+        self.declare_parameter('record_images', False)
+        self.declare_parameter('record_bags', True)
+
+        self._bag_dir = self.get_parameter('bag_dir').value
+        self._record_images = self.get_parameter('record_images').value
+        self._record_bags = self.get_parameter('record_bags').value
+
+        if self._record_bags:
+            os.makedirs(self._bag_dir, exist_ok=True)
 
         # Episode state
         self.active = False
@@ -47,6 +85,8 @@ class EpisodeTracker(Node):
         self.events = []  # raw events JSON list
         self.goal = None
         self.result = None
+        self._bag_proc = None
+        self._bag_path = None
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         latched = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE,
@@ -117,13 +157,51 @@ class EpisodeTracker(Node):
         self.collisions = 0
         self.errs = []
         self.events = []
+        self._start_bag()
         self.get_logger().info(f'episode {self.episode_id} started')
+
+    def _start_bag(self):
+        if not self._record_bags or not shutil.which('ros2'):
+            self._bag_proc = None
+            self._bag_path = None
+            return
+        ts = int(self.start_t)
+        bag_name = f'episode_{self.episode_id:04d}_{ts}'
+        self._bag_path = os.path.join(self._bag_dir, bag_name)
+        topics = list(BASE_BAG_TOPICS)
+        if self._record_images:
+            topics += IMAGE_BAG_TOPICS
+        cmd = ['ros2', 'bag', 'record', '-o', self._bag_path] + topics
+        try:
+            self._bag_proc = subprocess.Popen(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid)
+            self.get_logger().info(f'recording bag → {self._bag_path}')
+        except Exception as e:
+            self.get_logger().warning(f'bag start failed: {e}')
+            self._bag_proc = None
+            self._bag_path = None
+
+    def _stop_bag(self):
+        if self._bag_proc is None:
+            return
+        try:
+            os.killpg(os.getpgid(self._bag_proc.pid), signal.SIGINT)
+            self._bag_proc.wait(timeout=5.0)
+        except Exception as e:
+            self.get_logger().warning(f'bag stop failed: {e}')
+            try:
+                self._bag_proc.kill()
+            except Exception:
+                pass
+        self._bag_proc = None
 
     def _end_episode(self, result: str):
         if not self.active:
             return
         self.active = False
         duration = time.time() - self.start_t
+        self._stop_bag()
 
         if self.start_pose and self.last_pose:
             optimal = math.hypot(self.last_pose[0] - self.start_pose[0],
@@ -147,6 +225,7 @@ class EpisodeTracker(Node):
             'max_localization_error_m':     round(max_err, 4),
             'event_count':                  len(self.events),
             'last_pose':                    list(self.last_pose) if self.last_pose else None,
+            'bag_path':                     self._bag_path,
         }
         self.summary_pub.publish(String(data=json.dumps(summary)))
         self.get_logger().info(f'episode {self.episode_id} done: {result} '
@@ -163,6 +242,9 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        # Stop any in-flight bag recording cleanly
+        if node.active:
+            node._stop_bag()
         node.destroy_node()
         rclpy.shutdown()
 
