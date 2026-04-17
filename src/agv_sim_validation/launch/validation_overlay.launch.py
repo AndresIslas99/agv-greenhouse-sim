@@ -43,11 +43,11 @@ def generate_launch_description():
         DeclareLaunchArgument('enable_foxglove', default_value='true',
                               description='Launch foxglove_bridge :8765'),
 
-        # Ground-truth pose from /tf (world -> base_link)
-        Node(package='agv_sim_validation', executable='ground_truth_publisher',
-             name='ground_truth_publisher', namespace='agv',
-             parameters=[params, {'use_sim_time': True}],
-             output='screen'),
+        # Ground-truth pose now comes from the in-sim handler
+        # (open_greenhouse.py) which reads /agv/base_link's PhysX pose
+        # directly via dynamic_control. The external TF-based publisher was
+        # removed because /agv is a static Xform marker — TF lookup
+        # 'world -> agv' returns the spawn position, not the actual robot.
 
         # Localization error monitor
         Node(package='agv_sim_validation', executable='localization_monitor',

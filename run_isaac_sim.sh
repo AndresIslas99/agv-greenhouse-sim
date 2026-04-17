@@ -22,7 +22,7 @@ exec isaacsim \
   --/app/asyncRenderingLowLatency=true \
   --/app/hydraEngine/waitIdle=false \
   --/physics/suppressReadback=true \
-  --/physics/updateToUsd=false \
+  --/physics/updateToUsd=true \
   --/physics/updateVelocitiesToUsd=false \
   --/rtx/ecoMode/enabled=false \
   --/rtx/rendermode="RaytracedLighting"
