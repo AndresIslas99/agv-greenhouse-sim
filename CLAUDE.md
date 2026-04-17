@@ -49,8 +49,12 @@ topics the brain consumes in HIL mode
 | `/agv/zed/point_cloud/cloud_registered` | `sensor_msgs/PointCloud2` | 15 Hz | `zed_left_camera_frame` | OmniGraph |
 | `/agv/motor_state` | `std_msgs/String` (JSON) | 10 Hz | — | sim_motor_gate (matches `odrive_can_node.cpp:629`) |
 | `/agv/drive_debug` | `std_msgs/String` (JSON) | 10 Hz | — | sim_motor_gate |
-| `/agv/scan` | `sensor_msgs/LaserScan` | ~10 Hz | `base_link` | pointcloud_to_laserscan with brain's production params (HIL only) |
 | `/visual_slam/tracking/odometry` | `nav_msgs/Odometry` | 50 Hz | `map`→`base_link` | sim_global_odom (wheel_odom relay — HIL cuVSLAM replacement) |
+
+**Brain-owned in HIL** (NOT published by the sim):
+- `/agv/scan` — pointcloud_to_laserscan must run on the Jetson because
+  it is brain processing on the real robot. The sim publishes the raw
+  `/agv/zed/point_cloud/cloud_registered` and the brain consumes it.
 
 **Sim subscribes** to `/agv/cmd_vel` (mapping-first) or `/agv/cmd_vel_safe` (has_map mode, via topic_tools relay), plus `/agv/motor_enable` and `/agv/e_stop`.
 
@@ -77,7 +81,7 @@ All values come from the brain's canonical config — calibrated 2026-04-08.
 |---|---|---|
 | Sensor base | `ros2 launch agv_isaac_sim isaac_sim.launch.py` | Just the virtual body (robot_state_publisher, static TFs, IMU/depth realism relays). Intended to be included by teleop/hil, not run alone. |
 | Standalone teleop | `ros2 launch agv_isaac_sim isaac_teleop.launch.py` | Sensor base + direct keyboard→/agv/cmd_vel→drive shaping. Bypasses the motor gate for easy smoke testing. |
-| HIL production | `ros2 launch agv_isaac_sim isaac_hil.launch.py` | Brain-compatible mode: motor gate + drive shaping + sim_global_odom + pointcloud_to_laserscan. Requires `ROS_DOMAIN_ID=42` and a running brain on the other side. |
+| HIL production | `ros2 launch agv_isaac_sim isaac_hil.launch.py` | Brain-compatible mode: motor gate + drive shaping + sim_wheel_odom_publisher + sim_global_odom. The brain owns `pointcloud_to_laserscan` on its side. Requires `ROS_DOMAIN_ID=42` and a running brain on the other side. |
 
 Isaac Sim itself must be started separately with the generated USD:
 ```bash

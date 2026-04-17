@@ -6,22 +6,25 @@ Composes three pieces:
      IMU bias drift relay, depth noise relay)
   2. Drive chain: sim_motor_gate → sim_drive_shaping_node → /agv/shaped_cmd_vel
   3. Brain-facing shims: sim_global_odom (cuVSLAM replacement),
-     pointcloud_to_laserscan (identical to brain production params)
+     sim_wheel_odom_publisher (encoder-style /agv/wheel_odom)
 
 Topics this launch guarantees to the brain network:
   /clock                                 (from Isaac sim time)
   /tf, /tf_static                        (robot_state_publisher + static TFs)
-  /agv/wheel_odom                        50 Hz  (OmniGraph)
+  /agv/wheel_odom                        50 Hz  (sim_wheel_odom_publisher)
   /agv/joint_states                      50 Hz  (OmniGraph)
   /agv/imu/data                          200 Hz (relay with bias drift)
   /agv/zed/left/image_rect_color         15 Hz  (OmniGraph)
   /agv/zed/left/camera_info              15 Hz
   /agv/zed/depth/depth_registered        15 Hz  (relay with distance noise)
   /agv/zed/point_cloud/cloud_registered  15 Hz  (OmniGraph)
-  /agv/scan                              ~10 Hz (pointcloud_to_laserscan)
   /visual_slam/tracking/odometry         (sim_global_odom — cuVSLAM replacement)
   /agv/motor_state                       10 Hz  (sim_motor_gate JSON)
   /agv/drive_debug                       10 Hz
+
+NOT published here (brain owns it on its side, same as real robot):
+  /agv/scan         pointcloud_to_laserscan from cloud_registered.
+                    Must run on the Jetson next to Nav2.
 
 Subscribes (brain publishes):
   /agv/cmd_vel           (mapping-first mode) OR
@@ -159,53 +162,13 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # /agv/scan from ZED point cloud — same params as the brain's
-        # agv_full.launch.py. Runs on the sim PC in HIL mode per the brain's
-        # HIL launch comment.
-        Node(
-            package='pointcloud_to_laserscan',
-            executable='pointcloud_to_laserscan_node',
-            name='pointcloud_to_laserscan',
-            namespace=ns,
-            parameters=[{
-                'use_sim_time':     True,
-                'target_frame':     'base_link',
-                'min_height':       0.01,
-                'max_height':       2.0,
-                'range_min':        0.3,
-                'range_max':        8.0,
-                'angle_min':        -1.5708,
-                'angle_max':        1.5708,
-                'angle_increment':  0.00436,
-                'scan_time':        0.1,
-                'queue_size':       10,
-            }],
-            remappings=[
-                ('cloud_in', '/agv/zed/point_cloud/cloud_registered'),
-                # Publish to an internal topic with BEST_EFFORT QoS (the
-                # node hardcodes SensorDataQoS). sim_scan_qos_relay below
-                # republishes on /agv/scan with RELIABLE QoS so the brain's
-                # Nav2 (collision_monitor, costmaps, controller_server)
-                # actually connects — RELIABLE subscribers cannot receive
-                # from a BEST_EFFORT publisher.
-                ('scan',     '/agv/_sim_internal/scan_be'),
-            ],
-            output='screen',
-        ),
-
-        # QoS bridge: BEST_EFFORT pointcloud_to_laserscan output -> RELIABLE
-        # /agv/scan. Without this, brain Nav2 subscribers (RELIABLE by
-        # default) silently drop the topic.
-        Node(
-            package='agv_isaac_sim',
-            executable='sim_scan_qos_relay.py',
-            name='sim_scan_qos_relay',
-            namespace=ns,
-            parameters=[{'use_sim_time': True,
-                         'input_topic': '/agv/_sim_internal/scan_be',
-                         'output_topic': '/agv/scan'}],
-            output='screen',
-        ),
+        # NOTE: pointcloud_to_laserscan and any /agv/scan publisher are
+        # explicitly NOT here. That conversion is brain work — on the real
+        # robot it runs on the Jetson next to Nav2, so it must run on the
+        # Jetson in HIL mode too. The sim's only job is to publish the raw
+        # /agv/zed/point_cloud/cloud_registered topic; the brain consumes
+        # it and produces /agv/scan with whatever params Nav2 expects.
+        # See CLAUDE.md "the sim is the body, not the brain".
 
         # ── AI validation overlay ─────────────────────────────────────────
         # Optional: enable with validation:=true. Adds ground-truth pose,

@@ -83,7 +83,7 @@ ros2 run tf2_tools view_frames                 # should include imu_link, zed_*
 Starts exactly the components the brain's `agv_hil_full.launch.py`
 expects. No brain logic runs in the sim — only the hardware-equivalent
 publishers plus the minimum HIL shims (motor gate, cuVSLAM replacement,
-pointcloud_to_laserscan with production params).
+brain owns pointcloud_to_laserscan on its side).
 
 ```bash
 # Terminal 1 — Isaac Sim
