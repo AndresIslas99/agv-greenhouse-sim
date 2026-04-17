@@ -12,8 +12,7 @@ missing or mis-typed will break EKF / Nav2 / AprilTag detection silently.
 | Topic | Type | Rate | Frame | Producer in sim | Notes |
 |---|---|---|---|---|---|
 | `/clock` | `rosgraph_msgs/Clock` | sim | — | Isaac Sim internal | Required when `use_sim_time=true` on the brain side |
-| `/agv/wheel_odom` | `nav_msgs/Odometry` | 50 Hz | `odom`→`base_link` | OmniGraph ComputeOdometry | Covariance is zero from sim; brain's `covariance_override_node` patches it |
-| `/agv/joint_states` | `sensor_msgs/JointState` | 50 Hz | — | OmniGraph JointStatePublisher | Joints `left_wheel_joint`, `right_wheel_joint` in radians |
+| `/agv/joint_states` | `sensor_msgs/JointState` | 50 Hz | — | OmniGraph JointStatePublisher | Joints `left_wheel_joint`, `right_wheel_joint` in radians. Brain integrates into `/agv/wheel_odom` on its side |
 | `/agv/imu/data` | `sensor_msgs/Imu` | 200 Hz | `imu_link` | `isaac_ros_bridge_node.py` (reads `_clean` from OmniGraph and injects BMI088 bias drift) | Covariance is zero; brain's `covariance_override_node` patches |
 | `/agv/zed/left/image_rect_color` | `sensor_msgs/Image` | 15 Hz | `zed_left_camera_frame` | OmniGraph CameraHelper | Real ZED SDK publishes rectified — no distortion in sim output |
 | `/agv/zed/left/camera_info` | `sensor_msgs/CameraInfo` | 15 Hz | `zed_left_camera_frame` | OmniGraph | K matrix from `config/zed2i_calibration.yaml` |
@@ -23,8 +22,24 @@ missing or mis-typed will break EKF / Nav2 / AprilTag detection silently.
 | `/agv/zed/point_cloud/cloud_registered` | `sensor_msgs/PointCloud2` | 15 Hz | `zed_left_camera_frame` | OmniGraph | Brain consumes this directly and runs `pointcloud_to_laserscan` on its side |
 | `/agv/motor_state` | `std_msgs/String` (JSON) | 10 Hz | — | `sim_motor_gate.py` | JSON format matches `odrive_can_node.cpp:629` exactly |
 | `/agv/drive_debug` | `std_msgs/String` (JSON) | 10 Hz | — | `sim_motor_gate.py` | JSON format matches `odrive_can_node.cpp:647` |
-| `/agv/scan` | `sensor_msgs/LaserScan` | — | — | **NOT published by sim**. Brain runs `pointcloud_to_laserscan` on its side, same as on the real robot. The sim only provides `cloud_registered` as input. |
-| `/visual_slam/tracking/odometry` | `nav_msgs/Odometry` | 50 Hz | `map`→`base_link` | `sim_global_odom.py` | cuVSLAM replacement for HIL. Brain's `ekf_global` consumes as `odom1` with `differential: true`, so absolute drift does not matter. **HIL only** |
+
+## Brain owns in HIL (sim does NOT publish)
+
+Per the architecture rule "the sim is the body, not the brain", everything
+the Jetson would run on the real robot must also run on the Jetson in HIL.
+The brain MUST provide the following on its own HIL launch — the sim
+purposely does not.
+
+| Topic / TF | Real-robot source | Brain HIL action |
+|---|---|---|
+| `/agv/wheel_odom` | `agv_odrive_node` (Jetson, integrates encoder ticks from CAN) | Subscribe to `/agv/joint_states` (sim provides) and integrate. Reference impl: `src/agv_isaac_sim/scripts/sim_wheel_odom_publisher.py` |
+| `/agv/scan` | `pointcloud_to_laserscan` (Jetson, next to Nav2) | Subscribe to `/agv/zed/point_cloud/cloud_registered`; same params as `agv_full.launch.py` (target_frame `base_link`, range 0.3–8 m, ±90°) |
+| `/visual_slam/tracking/odometry` | cuVSLAM (`isaac_ros_visual_slam` on Jetson) | Run cuVSLAM with the sim's stereo+IMU; if cuVSLAM diverges on raytraced images, fallback is a relay of `/agv/wheel_odom` with `frame_id=map` (see retired `scripts/sim_global_odom.py` for reference) |
+| `/agv/odometry/local`, `/agv/odometry/global` | `ekf_local`, `ekf_global` (Robot Localization, Jetson) | Already runs Jetson-side in production |
+| TF `odom → base_link` | `ekf_local` | Same |
+| TF `map → odom` | `ekf_global` | Same |
+| `/detections` (AprilTag) | `apriltag_ros` (Jetson) | Same |
+| Costmaps, planners, behavior trees | Nav2 (Jetson) | Same |
 
 ## Sim subscribes (from the brain)
 

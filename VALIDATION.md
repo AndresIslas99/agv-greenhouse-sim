@@ -40,14 +40,14 @@ ros2 launch agv_isaac_sim isaac_teleop.launch.py
 
 | Check | Command | Pass criteria |
 |---|---|---|
-| Wheel odom rate | `ros2 topic hz /agv/wheel_odom` | ~50 Hz |
+| Joint state rate (brain integrates → wheel_odom) | `ros2 topic hz /agv/joint_states` | ~50 Hz |
 | Joint state rate | `ros2 topic hz /agv/joint_states` | ~50 Hz |
 | IMU rate | `ros2 topic hz /agv/imu/data` | ~200 Hz (target; actual depends on OmniGraph tick) |
 | Left RGB | `ros2 topic hz /agv/zed/left/image_rect_color` | ~15 Hz |
 | Right RGB | `ros2 topic hz /agv/zed/right/image_rect_color` | ~15 Hz |
 | Depth | `ros2 topic hz /agv/zed/depth/depth_registered` | ~15 Hz |
 | Point cloud | `ros2 topic hz /agv/zed/point_cloud/cloud_registered` | ~15 Hz |
-| Drive forward | `ros2 topic pub /agv/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}}" -r 10` then `ros2 topic echo /agv/wheel_odom --once` | `pose.position.x` increases over 4 s |
+| Drive forward (sim) | `ros2 topic pub /agv/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}}" -r 10` then `curl -s http://localhost:8090/state \| jq '.gt_pose.x'` | `gt_pose.x` increases over 4 s (wheel_odom is brain-side now) |
 | TF: odom → base_link | `ros2 run tf2_ros tf2_echo odom base_link` | translation changes when driving |
 | Physical params | `ros2 param get /agv/sim_drive_shaping_node wheel_radius` | `0.0781` |
 | Track width | `ros2 param get /agv/sim_drive_shaping_node track_width` | `0.960` |
@@ -75,7 +75,7 @@ ros2 launch agv_bringup agv_hil_full.launch.py map:=/path/to/greenhouse_map.yaml
 | Brain sees sim topics | brain | `ros2 topic list \| grep -E "wheel_odom\|imu/data\|zed/left"` | all present |
 | /clock flowing | brain | `ros2 topic hz /clock` | >0 Hz |
 | motor_state JSON format | brain | `ros2 topic echo /agv/motor_state --once` | 13 fields: left_state, right_state, left_errors, right_errors, armed, bus_voltage, bus_current, left_fet_temp, left_motor_temp, right_fet_temp, right_motor_temp, thermal_state |
-| /visual_slam/tracking/odometry | brain | `ros2 topic hz /visual_slam/tracking/odometry` | ~50 Hz |
+| /visual_slam/tracking/odometry (brain-owned) | brain | `ros2 topic hz /visual_slam/tracking/odometry` | ~50 Hz (brain runs cuVSLAM or wheel_odom relay) |
 | /agv/scan flowing | brain | `ros2 topic hz /agv/scan` | ~10 Hz (brain runs pointcloud_to_laserscan on its side) |
 | ekf_local up | brain | `ros2 node list \| grep ekf_local` | present |
 | /agv/odometry/local | brain | `ros2 topic hz /agv/odometry/local` | ~50 Hz |

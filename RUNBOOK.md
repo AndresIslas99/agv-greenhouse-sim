@@ -157,7 +157,7 @@ ros2 launch agv_isaac_sim isaac_hil.launch.py \
 Esto levanta:
 
 - **Drive chain:** `sim_motor_gate` + `sim_drive_shaping_node` +
-  `sim_global_odom` + `sim_wheel_odom_publisher` (brain owns `pointcloud_to_laserscan`)
+  (brain owns `/agv/wheel_odom`, `/visual_slam/tracking/odometry`, `/agv/scan`, EKF TFs — see CLAUDE.md Architecture Rule)
 - **Overlay de validación:** `ground_truth_publisher`,
   `localization_monitor`, `events_detector`, `episode_tracker`,
   `visible_markers`, `obstacles_publisher`
@@ -170,7 +170,7 @@ Esto levanta:
 cd ~/agv-sim && source install/setup.bash && export ROS_DOMAIN_ID=42
 
 ros2 topic hz /clock                                      # >0 Hz
-ros2 topic hz /agv/wheel_odom                             # ~50 Hz
+ros2 topic hz /agv/joint_states                           # ~50 Hz (brain integrates → /agv/wheel_odom)
 ros2 topic hz /agv/imu/data                               # ~200 Hz target
 ros2 topic echo /agv/sim/ground_truth/obstacles --once    # 11 obstáculos
 curl -s http://localhost:8090/state | jq                  # snapshot
