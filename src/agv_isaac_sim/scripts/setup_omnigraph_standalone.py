@@ -312,7 +312,14 @@ try:
             ],
             keys.SET_VALUES: [
                 ("ComputeOdom.inputs:chassisPrim", ARTICULATION_PATH),
-                ("PublishOdom.inputs:topicName", TOPICS["wheel_odom"]),
+                # Was TOPICS["wheel_odom"] (= /agv/wheel_odom). Renamed
+                # because IsaacComputeOdometry produces wrong-signed
+                # position.x and zero covariance, which collapses the
+                # brain ekf_local. The /agv/wheel_odom contract is now
+                # owned by sim_wheel_odom_publisher.py (encoder-style
+                # integration from /agv/joint_states). This OmniGraph
+                # publisher stays alive for diagnostic comparisons.
+                ("PublishOdom.inputs:topicName", "/agv/_sim_internal/isaac_compute_odom_raw"),
                 ("PublishOdom.inputs:odomFrameId", "odom"),
                 ("PublishOdom.inputs:chassisFrameId", "base_link"),
                 ("PublishTF.inputs:targetPrims", ROBOT_PATH),

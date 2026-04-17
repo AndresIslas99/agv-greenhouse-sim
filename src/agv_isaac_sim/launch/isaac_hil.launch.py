@@ -131,6 +131,21 @@ def generate_launch_description():
 
         # ── Brain-facing shims ─────────────────────────────────────────────
 
+        # Wheel-encoder odometry from /agv/joint_states (replaces the broken
+        # OmniGraph IsaacComputeOdometry → ROS2PublishOdometry chain that
+        # was producing wrong-signed pose.x and zero covariance, which
+        # collapsed the brain's ekf_local). The OmniGraph publisher now
+        # publishes to /agv/_sim_internal/isaac_compute_odom_raw for
+        # diagnostic comparison only — /agv/wheel_odom comes from here.
+        Node(
+            package='agv_isaac_sim',
+            executable='sim_wheel_odom_publisher.py',
+            name='sim_wheel_odom_publisher',
+            namespace=ns,
+            parameters=[{'use_sim_time': True}],
+            output='screen',
+        ),
+
         # cuVSLAM replacement for HIL: wheel_odom republished with frame_id=map.
         # Brain's ekf_global consumes this as odom1 with differential:true so
         # absolute drift doesn't matter — only per-tick deltas.

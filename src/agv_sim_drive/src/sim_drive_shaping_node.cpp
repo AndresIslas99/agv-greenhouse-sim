@@ -129,9 +129,14 @@ void SimDriveShapingNode::publish_loop() {
   float right_shaped = apply_wheel_shaping(
     static_cast<float>(v_right), prev_right_cmd_, right_sign_ * right_scale_);
 
-  // Convert shaped motor turns/s back to body-frame Twist (m/s)
-  double wl = static_cast<double>(left_shaped) / gear_ratio_ * wheel_radius_ * 2.0 * M_PI;
-  double wr = static_cast<double>(right_shaped) / gear_ratio_ * wheel_radius_ * 2.0 * M_PI;
+  // Convert shaped motor turns/s back to body-frame Twist (m/s).
+  // left_shaped/right_shaped are signed motor commands (per-wheel invert
+  // already applied). Multiply by left_sign_*left_scale_ to undo the
+  // per-wheel sign so wl/wr are chassis-frame wheel speeds.
+  double wl = static_cast<double>(left_shaped) * left_sign_ * left_scale_
+              / gear_ratio_ * wheel_radius_ * 2.0 * M_PI;
+  double wr = static_cast<double>(right_shaped) * right_sign_ * right_scale_
+              / gear_ratio_ * wheel_radius_ * 2.0 * M_PI;
   out.linear.x = (wl + wr) / 2.0;
   out.angular.z = (wr - wl) / track_width_;
 
