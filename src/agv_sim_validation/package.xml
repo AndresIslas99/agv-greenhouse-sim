@@ -29,6 +29,8 @@
   <!-- Python pip deps not in rosdep: install via
        `pip install fastapi uvicorn opencv-python` -->
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

@@ -42,6 +42,27 @@
     success_position_tol_m: 0.30
     success_yaw_tol_rad: 0.30
 
+/**/visible_markers:
+  ros__parameters:
+    use_sim_time: true
+    rate_hz: 5.0
+    max_distance_m: 5.0
+    hfov_deg: 110.0             # ZED 2i horizontal FOV
+    max_incidence_deg: 80.0     # tag normal must face camera within this
+    # Camera position relative to base_link (URDF zed2i_camera_link frame)
+    cam_offset_x: 0.70
+    cam_offset_y: 0.0
+    cam_offset_z: -0.055
+
+/**/obstacles_publisher:
+  ros__parameters:
+    use_sim_time: false         # static data, published once at startup
+    world_config_path: ""       # empty = use ament share (agv_isaac_sim)
+    include_walls: true
+    include_crates: true
+    include_props: true
+    include_crop_rows: false    # visible to depth camera but not rigid
+
 /**/sim_api:
   ros__parameters:
     use_sim_time: false         # API runs on wall clock for HTTP timeouts

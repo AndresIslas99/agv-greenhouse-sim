@@ -17,12 +17,13 @@
       <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
       <Peers>
         <Peer address="localhost"/>
-        <Peer address="192.168.50.34"/>
+        <Peer address="192.168.15.241"/>
       </Peers>
     </Discovery>
 
     <Internal>
       <SocketReceiveBufferSize min="26MB" />
+      <SocketSendBufferSize min="26MB" />
       <Watermarks>
         <WhcHigh>500kB</WhcHigh>
       </Watermarks>

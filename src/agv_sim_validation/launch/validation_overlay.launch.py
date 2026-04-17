@@ -10,8 +10,15 @@ Components:
   localization_monitor    compares GT vs /agv/odometry/global, publishes error JSON
   events_detector         emits discrete events on /agv/sim/events
   episode_tracker         tracks Nav2 missions, publishes summaries (Phase 3)
+  visible_markers         AprilTag GT visibility (Phase 4)
+  obstacles_publisher     static obstacle GT, latched (Phase 4)
   sim_api                 FastAPI :8090 (Phase 3, opt-in)
   foxglove_bridge         WebSocket :8765 for remote LLM/UI access
+
+Note: collision events on /agv/sim/events and physical teleport via
+/agv/sim/reset_request are produced by the in-sim handler that lives in
+scripts/open_greenhouse.py — that script is loaded into the Isaac Sim
+process by run_isaac_sim.sh, not by this launch file.
 """
 
 import os
@@ -57,6 +64,18 @@ def generate_launch_description():
         # Episode tracker (Nav2 missions → /agv/sim/episode_summary)
         Node(package='agv_sim_validation', executable='episode_tracker',
              name='episode_tracker', namespace='agv',
+             parameters=[params],
+             output='screen'),
+
+        # Visible AprilTags GT (camera frustum test)
+        Node(package='agv_sim_validation', executable='visible_markers',
+             name='visible_markers', namespace='agv',
+             parameters=[params, {'use_sim_time': True}],
+             output='screen'),
+
+        # Static obstacles GT (walls + crates + props, latched)
+        Node(package='agv_sim_validation', executable='obstacles_publisher',
+             name='obstacles_publisher', namespace='agv',
              parameters=[params],
              output='screen'),
 
