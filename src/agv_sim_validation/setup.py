@@ -27,6 +27,8 @@ setup(
             'events_detector        = agv_sim_validation.events_detector:main',
             'episode_tracker        = agv_sim_validation.episode_tracker:main',
             'sim_api                = agv_sim_validation.sim_api:main',
+            'visible_markers        = agv_sim_validation.visible_markers:main',
+            'obstacles_publisher    = agv_sim_validation.obstacles_publisher:main',
         ],
     },
 )

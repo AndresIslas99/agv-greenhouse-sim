@@ -240,11 +240,12 @@ class SimState(Node):
             return self._latest_jpeg, age
 
     def request_reset(self, pose: ResetPose) -> dict:
-        """Publish a reset request. Actual teleport requires an in-sim handler.
+        """Publish a reset request. The in-sim handler (open_greenhouse.py)
+        consumes /agv/sim/reset_request and physically teleports the robot
+        via omni.isaac.dynamic_control, zeroing linear/angular velocity.
 
-        A future improvement adds an OmniGraph script-node that subscribes to
-        /agv/sim/reset_request and calls UsdGeom.Xformable.SetTranslate on
-        the /agv prim. For now we publish the request and clear motion state.
+        We also disarm the motor gate and pulse e-stop so the brain doesn't
+        try to drive into the new pose with stale commands.
         """
         msg = PoseStamped()
         msg.header.frame_id = 'world'
@@ -257,15 +258,16 @@ class SimState(Node):
         msg.pose.orientation.z = sy
         msg.pose.orientation.w = cy
         self.reset_pub.publish(msg)
-        # Also disarm and e-stop briefly so the robot stops moving
+        # Disarm + e-stop so the robot stops moving while teleport applies
         self.motor_enable_pub.publish(Bool(data=False))
         self.estop_pub.publish(Bool(data=True))
         return {
             'ok': True,
             'requested': {'x': pose.x, 'y': pose.y, 'yaw': pose.yaw, 'z': pose.z},
-            'note': ('Reset request published on /agv/sim/reset_request. '
-                     'Physical teleport requires an in-sim OmniGraph handler '
-                     '(not yet implemented). Robot has been disarmed.'),
+            'note': ('Teleport request sent on /agv/sim/reset_request. '
+                     'In-sim handler will apply within 1 physics step and '
+                     'confirm on /agv/sim/reset_done. Motors disarmed; '
+                     're-arm via POST /motor/enable {"on": true} after.'),
         }
 
     def set_motor_enable(self, on: bool) -> dict:
