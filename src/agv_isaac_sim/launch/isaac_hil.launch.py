@@ -182,8 +182,28 @@ def generate_launch_description():
             }],
             remappings=[
                 ('cloud_in', '/agv/zed/point_cloud/cloud_registered'),
-                ('scan',     '/agv/scan'),
+                # Publish to an internal topic with BEST_EFFORT QoS (the
+                # node hardcodes SensorDataQoS). sim_scan_qos_relay below
+                # republishes on /agv/scan with RELIABLE QoS so the brain's
+                # Nav2 (collision_monitor, costmaps, controller_server)
+                # actually connects — RELIABLE subscribers cannot receive
+                # from a BEST_EFFORT publisher.
+                ('scan',     '/agv/_sim_internal/scan_be'),
             ],
+            output='screen',
+        ),
+
+        # QoS bridge: BEST_EFFORT pointcloud_to_laserscan output -> RELIABLE
+        # /agv/scan. Without this, brain Nav2 subscribers (RELIABLE by
+        # default) silently drop the topic.
+        Node(
+            package='agv_isaac_sim',
+            executable='sim_scan_qos_relay.py',
+            name='sim_scan_qos_relay',
+            namespace=ns,
+            parameters=[{'use_sim_time': True,
+                         'input_topic': '/agv/_sim_internal/scan_be',
+                         'output_topic': '/agv/scan'}],
             output='screen',
         ),
 
