@@ -9,10 +9,18 @@ concern of the mode-specific launches that include this one:
   - isaac_hil.launch.py     — production HIL: brain on Jetson drives sim
 
 Components:
-  - robot_state_publisher   URDF → /tf_static + /robot_description
-  - static TFs              imu_link, zed_camera_link, zed_left/right_camera_frame
-  - isaac_ros_bridge_node   IMU bias drift: /agv/imu/data_clean → /agv/imu/data
-  - sim_depth_noise         depth noise:    /agv/zed/depth/depth_clean → depth_registered
+  - robot_state_publisher       URDF → /tf_static + /robot_description
+  - static TFs                  imu_link, zed_camera_link, zed_left/right_camera_frame
+  - isaac_ros_bridge_node       IMU bias drift: /agv/imu/data_clean → /agv/imu/data
+  - sim_depth_noise             depth noise:    /agv/zed/depth/depth_clean → depth_registered
+  - sim_odom_tf_broadcaster     odom → base_link TF (STANDALONE ONLY,
+                                gated on standalone_mode:=true)
+
+Launch args:
+  namespace        ROS namespace (default 'agv').
+  standalone_mode  When true, brings up TF/odom sources that the brain
+                   normally owns in HIL. isaac_teleop.launch.py passes
+                   true; isaac_hil.launch.py leaves it false.
 
 Isaac Sim itself is started separately with:
     isaacsim --open-usd src/agv_isaac_sim/worlds/greenhouse_simple.usd --ros2
@@ -22,6 +30,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
@@ -32,9 +41,18 @@ def generate_launch_description():
     xacro_file = os.path.join(isaac_pkg, 'urdf', 'agv_sim.urdf.xacro')
 
     ns = LaunchConfiguration('namespace')
+    standalone_mode = LaunchConfiguration('standalone_mode')
 
     return LaunchDescription([
         DeclareLaunchArgument('namespace', default_value='agv'),
+        DeclareLaunchArgument(
+            'standalone_mode', default_value='false',
+            description=('When true, brings up sim-side replacements for '
+                         'topics that the brain owns in HIL (e.g. the '
+                         'odom→base_link TF that ekf_local provides). '
+                         'isaac_teleop.launch.py sets this to true. HIL '
+                         'mode (isaac_hil.launch.py) leaves it false so '
+                         'the brain is authoritative.')),
 
         # Robot state publisher — URDF → /tf_static + /robot_description
         Node(
@@ -126,10 +144,9 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # odom → base_link TF broadcaster.
-        # Standalone fallback since Isaac's ROS2PublishOdometry publishes the
-        # topic but not the TF. In HIL mode with a real brain, the brain's
-        # ekf_local owns this TF — this node duplicates it but tf2 dedups.
+        # odom → base_link TF broadcaster (STANDALONE MODE ONLY).
+        # In HIL mode the brain's ekf_local publishes this TF — running
+        # this node would create a TF conflict. Gated on standalone_mode.
         Node(
             package='agv_isaac_sim',
             executable='sim_odom_tf_broadcaster.py',
@@ -137,6 +154,7 @@ def generate_launch_description():
             namespace=ns,
             parameters=[{'use_sim_time': True}],
             remappings=[('wheel_odom', '/agv/wheel_odom')],
+            condition=IfCondition(standalone_mode),
             output='screen',
         ),
 

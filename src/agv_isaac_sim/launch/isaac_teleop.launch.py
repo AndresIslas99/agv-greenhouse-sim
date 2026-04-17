@@ -28,13 +28,15 @@ def generate_launch_description():
     drive_params = os.path.join(drive_pkg, 'config', 'drive_shaping_params.yaml')
 
     return LaunchDescription([
-        # Sensor base
+        # Sensor base. standalone_mode=true so the sensor base brings up
+        # the odom→base_link TF broadcaster (no brain ekf_local in teleop).
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
                     FindPackageShare('agv_isaac_sim'), 'launch', 'isaac_sim.launch.py',
                 ]),
             ),
+            launch_arguments={'standalone_mode': 'true'}.items(),
         ),
 
         # Drive shaping: /agv/cmd_vel → /agv/shaped_cmd_vel

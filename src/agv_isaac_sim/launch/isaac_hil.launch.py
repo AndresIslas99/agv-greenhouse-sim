@@ -1,30 +1,36 @@
 """
 AGV Isaac Sim HIL — virtual body for the brain running on the Jetson.
 
-Composes three pieces:
+Composes two pieces:
   1. isaac_sim.launch.py (sensor base: robot_state_publisher, static TFs,
      IMU bias drift relay, depth noise relay)
   2. Drive chain: sim_motor_gate → sim_drive_shaping_node → /agv/shaped_cmd_vel
-  3. Brain-facing shims: sim_global_odom (cuVSLAM replacement),
-     sim_wheel_odom_publisher (encoder-style /agv/wheel_odom)
 
-Topics this launch guarantees to the brain network:
+Topics this launch publishes (hardware emulation — the brain CANNOT
+provide these because the real chip would be out of reach in HIL):
+
   /clock                                 (from Isaac sim time)
   /tf, /tf_static                        (robot_state_publisher + static TFs)
-  /agv/wheel_odom                        50 Hz  (sim_wheel_odom_publisher)
-  /agv/joint_states                      50 Hz  (OmniGraph)
+  /agv/joint_states                      50 Hz  (OmniGraph — encoder ticks)
   /agv/imu/data                          200 Hz (relay with bias drift)
-  /agv/zed/left/image_rect_color         15 Hz  (OmniGraph)
+  /agv/zed/left/image_rect_color         15 Hz  (OmniGraph — ZED SDK output stand-in)
   /agv/zed/left/camera_info              15 Hz
+  /agv/zed/right/image_rect_color        15 Hz
+  /agv/zed/right/camera_info             15 Hz
   /agv/zed/depth/depth_registered        15 Hz  (relay with distance noise)
   /agv/zed/point_cloud/cloud_registered  15 Hz  (OmniGraph)
-  /visual_slam/tracking/odometry         (sim_global_odom — cuVSLAM replacement)
   /agv/motor_state                       10 Hz  (sim_motor_gate JSON)
   /agv/drive_debug                       10 Hz
+  /agv/cmd_vel_armed, /agv/shaped_cmd_vel       (drive chain internal)
 
-NOT published here (brain owns it on its side, same as real robot):
-  /agv/scan         pointcloud_to_laserscan from cloud_registered.
-                    Must run on the Jetson next to Nav2.
+NOT published here — brain owns these on its side, same as real robot:
+  /agv/wheel_odom                  encoder integration (real: agv_odrive_node)
+  /agv/scan                        pointcloud_to_laserscan
+  /visual_slam/tracking/odometry   cuVSLAM
+  TF odom → base_link              ekf_local
+  TF map → odom                    ekf_global
+
+See CLAUDE.md "Architecture Rule" for the full split.
 
 Subscribes (brain publishes):
   /agv/cmd_vel           (mapping-first mode) OR
@@ -132,43 +138,38 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # ── Brain-facing shims ─────────────────────────────────────────────
-
-        # Wheel-encoder odometry from /agv/joint_states (replaces the broken
-        # OmniGraph IsaacComputeOdometry → ROS2PublishOdometry chain that
-        # was producing wrong-signed pose.x and zero covariance, which
-        # collapsed the brain's ekf_local). The OmniGraph publisher now
-        # publishes to /agv/_sim_internal/isaac_compute_odom_raw for
-        # diagnostic comparison only — /agv/wheel_odom comes from here.
-        Node(
-            package='agv_isaac_sim',
-            executable='sim_wheel_odom_publisher.py',
-            name='sim_wheel_odom_publisher',
-            namespace=ns,
-            parameters=[{'use_sim_time': True}],
-            output='screen',
-        ),
-
-        # cuVSLAM replacement for HIL: wheel_odom republished with frame_id=map.
-        # Brain's ekf_global consumes this as odom1 with differential:true so
-        # absolute drift doesn't matter — only per-tick deltas.
-        Node(
-            package='agv_isaac_sim',
-            executable='sim_global_odom.py',
-            name='sim_global_odom',
-            namespace=ns,
-            parameters=[{'use_sim_time': True}],
-            remappings=[('wheel_odom', '/agv/wheel_odom')],
-            output='screen',
-        ),
-
-        # NOTE: pointcloud_to_laserscan and any /agv/scan publisher are
-        # explicitly NOT here. That conversion is brain work — on the real
-        # robot it runs on the Jetson next to Nav2, so it must run on the
-        # Jetson in HIL mode too. The sim's only job is to publish the raw
-        # /agv/zed/point_cloud/cloud_registered topic; the brain consumes
-        # it and produces /agv/scan with whatever params Nav2 expects.
-        # See CLAUDE.md "the sim is the body, not the brain".
+        # ── Brain-owned in HIL (sim does NOT publish these) ────────────────
+        #
+        # Per the architecture rule "the sim is the body, not the brain",
+        # everything that the Jetson runs on the real robot must also run
+        # on the Jetson in HIL — the sim only emulates hardware that
+        # cannot run without the actual chip plugged in. The brain MUST
+        # provide the following on its own HIL launch (see CLAUDE.md):
+        #
+        #   /agv/wheel_odom              — encoder integration. On the real
+        #     robot the agv_odrive_node reads CAN frames from the ODrive
+        #     and publishes nav_msgs/Odometry. In HIL the brain should
+        #     subscribe to /agv/joint_states (which the sim publishes via
+        #     OmniGraph) and integrate it itself. The sim ships a
+        #     reference implementation at scripts/sim_wheel_odom_publisher.py
+        #     that the brain can copy as a starting point.
+        #
+        #   /visual_slam/tracking/odometry — cuVSLAM. On the real robot
+        #     this comes from isaac_ros_visual_slam consuming the ZED
+        #     stereo + IMU on the Jetson. In HIL the brain should run
+        #     cuVSLAM with the sim's stereo images, OR (faster fallback)
+        #     run a wheel_odom-to-map relay equivalent to the previous
+        #     scripts/sim_global_odom.py.
+        #
+        #   /agv/scan                    — pointcloud_to_laserscan.
+        #     Brain runs this from /agv/zed/point_cloud/cloud_registered.
+        #     Same params as agv_full.launch.py.
+        #
+        #   TF odom → base_link          — owned by brain ekf_local in HIL.
+        #     The sim used to publish this via sim_odom_tf_broadcaster
+        #     when running standalone; that broadcaster is now gated on
+        #     standalone_mode:=true (see isaac_sim.launch.py) and stays
+        #     OFF in HIL.
 
         # ── AI validation overlay ─────────────────────────────────────────
         # Optional: enable with validation:=true. Adds ground-truth pose,
