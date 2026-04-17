@@ -104,13 +104,10 @@ class SimState(Node):
         self.create_subscription(Image, '/agv/zed/left/image_rect_color',
                                  self._on_image, cam_qos)
 
-        # Reset request publisher (latched). An OmniGraph reset handler in
-        # Isaac is required to actually teleport — currently the topic is
-        # advertised so an external script can listen, but no in-sim consumer
-        # exists yet. POST /reset returns 202 Accepted with a hint.
         self.reset_pub = self.create_publisher(
             PoseStamped, '/agv/sim/reset_request', latched)
-        # E-stop helper
+        self.control_pub = self.create_publisher(
+            String, '/agv/sim/control', qos)
         self.estop_pub = self.create_publisher(Bool, '/agv/e_stop', qos)
         self.motor_enable_pub = self.create_publisher(Bool, '/agv/motor_enable', qos)
 
@@ -278,6 +275,37 @@ class SimState(Node):
         self.estop_pub.publish(Bool(data=on))
         return {'ok': True, 'e_stop': on}
 
+    def sim_control(self, action: str) -> dict:
+        self.control_pub.publish(String(data=action))
+        return {'ok': True, 'action': action,
+                'note': f'{action} command sent to /agv/sim/control. '
+                        'Executed by the in-sim handler on the next Kit frame.'}
+
+    def sim_restart(self) -> dict:
+        import subprocess, signal
+        restart_flag = '/tmp/agv_restart_isaac'
+        with open(restart_flag, 'w') as f:
+            f.write('restart')
+        result = subprocess.run(
+            ['pgrep', '-f', 'bin/isaacsim.*open_greenhouse'],
+            capture_output=True, text=True)
+        killed = []
+        for pid in result.stdout.strip().split('\n'):
+            if pid:
+                try:
+                    os.kill(int(pid), signal.SIGTERM)
+                    killed.append(int(pid))
+                except Exception:
+                    pass
+        return {
+            'ok': True, 'action': 'restart',
+            'killed_pids': killed,
+            'note': ('Isaac Sim process terminated. If running under '
+                     'run_isaac_supervised.sh, it will relaunch automatically '
+                     'with auto-play. Poll GET /state until gt_pose is non-null '
+                     'to confirm recovery (~30-60 s).'),
+        }
+
     # ── helpers ──
 
     @staticmethod
@@ -334,6 +362,9 @@ def make_app(state: SimState) -> FastAPI:
                 'POST /reset':           'request teleport: {x, y, yaw, z}',
                 'POST /motor/enable':    'arm/disarm: {on: bool}',
                 'POST /e_stop':          'set/clear e-stop: {on: bool}',
+                'POST /sim/play':        'start Isaac Sim timeline',
+                'POST /sim/stop':        'stop Isaac Sim timeline',
+                'POST /sim/restart':     'kill + relaunch Isaac (needs supervisor)',
             },
         }
 
@@ -414,6 +445,18 @@ def make_app(state: SimState) -> FastAPI:
     @app.post('/e_stop')
     def post_estop(payload: OnOff):
         return state.set_estop(payload.on)
+
+    @app.post('/sim/play')
+    def sim_play():
+        return state.sim_control('play')
+
+    @app.post('/sim/stop')
+    def sim_stop():
+        return state.sim_control('stop')
+
+    @app.post('/sim/restart')
+    def sim_restart():
+        return state.sim_restart()
 
     return app
 
