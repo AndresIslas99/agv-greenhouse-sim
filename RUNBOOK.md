@@ -157,7 +157,7 @@ ros2 launch agv_isaac_sim isaac_hil.launch.py \
 Esto levanta:
 
 - **Drive chain:** `sim_motor_gate` + `sim_drive_shaping_node` +
-  `sim_global_odom` + `pointcloud_to_laserscan`
+  `sim_global_odom` + `sim_wheel_odom_publisher` (brain owns `pointcloud_to_laserscan`)
 - **Overlay de validación:** `ground_truth_publisher`,
   `localization_monitor`, `events_detector`, `episode_tracker`,
   `visible_markers`, `obstacles_publisher`

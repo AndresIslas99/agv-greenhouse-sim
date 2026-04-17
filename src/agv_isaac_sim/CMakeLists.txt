@@ -21,7 +21,6 @@ install(PROGRAMS
   scripts/sim_motor_gate.py
   scripts/sim_odom_tf_broadcaster.py
   scripts/sim_wheel_odom_publisher.py
-  scripts/sim_scan_qos_relay.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

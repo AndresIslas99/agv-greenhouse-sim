@@ -20,10 +20,10 @@ missing or mis-typed will break EKF / Nav2 / AprilTag detection silently.
 | `/agv/zed/right/image_rect_color` | `sensor_msgs/Image` | 15 Hz | `zed_right_camera_frame` | OmniGraph | |
 | `/agv/zed/right/camera_info` | `sensor_msgs/CameraInfo` | 15 Hz | `zed_right_camera_frame` | OmniGraph | |
 | `/agv/zed/depth/depth_registered` | `sensor_msgs/Image` | 15 Hz | `zed_left_camera_frame` | `sim_depth_noise.py` (reads `_clean` from OmniGraph and adds σ(d) = 0.002 + 0.005·d Gaussian + dropout beyond 15 m) | 32FC1, meters |
-| `/agv/zed/point_cloud/cloud_registered` | `sensor_msgs/PointCloud2` | 15 Hz | `zed_left_camera_frame` | OmniGraph | Used by sim-side `pointcloud_to_laserscan` in HIL |
+| `/agv/zed/point_cloud/cloud_registered` | `sensor_msgs/PointCloud2` | 15 Hz | `zed_left_camera_frame` | OmniGraph | Brain consumes this directly and runs `pointcloud_to_laserscan` on its side |
 | `/agv/motor_state` | `std_msgs/String` (JSON) | 10 Hz | — | `sim_motor_gate.py` | JSON format matches `odrive_can_node.cpp:629` exactly |
 | `/agv/drive_debug` | `std_msgs/String` (JSON) | 10 Hz | — | `sim_motor_gate.py` | JSON format matches `odrive_can_node.cpp:647` |
-| `/agv/scan` | `sensor_msgs/LaserScan` | ~10 Hz | `base_link` | `pointcloud_to_laserscan` inside `isaac_hil.launch.py` | Same production params as the brain's `agv_full.launch.py`: `min_height=0.01, max_height=2.0, range_min=0.3, range_max=8.0`. **HIL only** — teleop mode doesn't publish this |
+| `/agv/scan` | `sensor_msgs/LaserScan` | — | — | **NOT published by sim**. Brain runs `pointcloud_to_laserscan` on its side, same as on the real robot. The sim only provides `cloud_registered` as input. |
 | `/visual_slam/tracking/odometry` | `nav_msgs/Odometry` | 50 Hz | `map`→`base_link` | `sim_global_odom.py` | cuVSLAM replacement for HIL. Brain's `ekf_global` consumes as `odom1` with `differential: true`, so absolute drift does not matter. **HIL only** |
 
 ## Sim subscribes (from the brain)

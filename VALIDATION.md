@@ -76,7 +76,7 @@ ros2 launch agv_bringup agv_hil_full.launch.py map:=/path/to/greenhouse_map.yaml
 | /clock flowing | brain | `ros2 topic hz /clock` | >0 Hz |
 | motor_state JSON format | brain | `ros2 topic echo /agv/motor_state --once` | 13 fields: left_state, right_state, left_errors, right_errors, armed, bus_voltage, bus_current, left_fet_temp, left_motor_temp, right_fet_temp, right_motor_temp, thermal_state |
 | /visual_slam/tracking/odometry | brain | `ros2 topic hz /visual_slam/tracking/odometry` | ~50 Hz |
-| /agv/scan flowing | brain | `ros2 topic hz /agv/scan` | ~10 Hz |
+| /agv/scan flowing | brain | `ros2 topic hz /agv/scan` | ~10 Hz (brain runs pointcloud_to_laserscan on its side) |
 | ekf_local up | brain | `ros2 node list \| grep ekf_local` | present |
 | /agv/odometry/local | brain | `ros2 topic hz /agv/odometry/local` | ~50 Hz |
 | /agv/odometry/global | brain | `ros2 topic hz /agv/odometry/global` | ~10-20 Hz |
