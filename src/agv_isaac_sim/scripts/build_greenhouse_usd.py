@@ -447,6 +447,27 @@ def build_greenhouse(stage):
                position=GROUND_POS,
                material=mat_soil)
 
+    # Physics material for the ground (high friction so wheels don't slip).
+    # Bound with purpose='physics' so it doesn't conflict with the visual
+    # OmniPBR binding above.
+    ground_phys_mat = UsdShade.Material.Define(stage, f"{M}/GroundPhys").GetPrim()
+    gp_api = UsdPhysics.MaterialAPI.Apply(ground_phys_mat)
+    gp_api.CreateStaticFrictionAttr(1.5)
+    gp_api.CreateDynamicFrictionAttr(1.3)
+    gp_api.CreateRestitutionAttr(0.0)
+    try:
+        from pxr import PhysxSchema
+        px = PhysxSchema.PhysxMaterialAPI.Apply(ground_phys_mat)
+        px.CreateFrictionCombineModeAttr('max')
+    except Exception:
+        pass
+    ground_mesh = stage.GetPrimAtPath("/World/Ground/Mesh")
+    if ground_mesh and ground_mesh.IsValid():
+        binding = UsdShade.MaterialBindingAPI.Apply(ground_mesh)
+        binding.Bind(UsdShade.Material(ground_phys_mat),
+                     UsdShade.Tokens.weakerThanDescendants, 'physics')
+        print("  Ground: physics material bound (μs=1.5 / μd=1.3)")
+
     # ── Walls ─────────────────────────────────────────────────
     UsdGeom.Xform.Define(stage, "/World/Walls")
     for name, pos, size in WALL_SPECS:

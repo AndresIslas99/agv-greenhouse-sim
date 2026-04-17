@@ -16,5 +16,5 @@
     right_scale: 1.0
     zero_vel_epsilon: 0.03       # turns/s — below this, send exact zero
     min_effective_vel: 0.0       # turns/s — disabled (no stiction compensation)
-    max_wheel_accel: 0.5         # turns/s² — gentler ramp reduces wheel slip
-    max_wheel_decel: 1.5         # turns/s² — 3x faster decel for responsive stopping
+    max_wheel_accel: 5.0         # motor turns/s² (~0.5 m/s² chassis) — robot reaches 0.5 m/s in ~1 s
+    max_wheel_decel: 1.5         # turns/s² — currently unused by C++ node; kept for parity with brain config

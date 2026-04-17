@@ -376,35 +376,67 @@ def setup_imu(stage, robot_path):
 
 
 def setup_physics_materials(stage, robot_path):
-    """Apply friction materials to wheels and casters."""
+    """Apply friction materials to wheels and casters.
+
+    Bumped to μ=1.5/1.3 with FrictionCombineMode='max' so wheel slip is
+    minimal during HIL navigation. The original 0.7/0.6 (rubber-on-soil
+    nominal) gave 99% slip in PhysX because the materials were never
+    actually bound via UsdShade.MaterialBindingAPI(purpose='physics') —
+    they were only created. The fix is the bind block below.
+    """
     print("Setting up physics materials...")
 
-    # Wheel material — calibrated: rubber on packed soil/concrete (μs=0.6-0.8)
-    wheel_mat = UsdPhysics.MaterialAPI.Apply(
-        UsdShade.Material.Define(stage, f"{robot_path}/Materials/WheelMaterial").GetPrim())
-    wheel_mat.CreateStaticFrictionAttr(0.7)
-    wheel_mat.CreateDynamicFrictionAttr(0.6)
-    wheel_mat.CreateRestitutionAttr(0.0)
+    def _make_phys(path, mu_s, mu_d, combine='max'):
+        prim = UsdShade.Material.Define(stage, path).GetPrim()
+        api = UsdPhysics.MaterialAPI.Apply(prim)
+        api.CreateStaticFrictionAttr(float(mu_s))
+        api.CreateDynamicFrictionAttr(float(mu_d))
+        api.CreateRestitutionAttr(0.0)
+        try:
+            px = PhysxSchema.PhysxMaterialAPI.Apply(prim)
+            px.CreateFrictionCombineModeAttr(combine)
+            px.CreateRestitutionCombineModeAttr('avg')
+        except Exception:
+            pass
+        return prim
 
-    # Caster material — calibrated: nylon ball caster on hard floor (μs=0.02-0.05)
-    caster_mat = UsdPhysics.MaterialAPI.Apply(
-        UsdShade.Material.Define(stage, f"{robot_path}/Materials/CasterMaterial").GetPrim())
-    caster_mat.CreateStaticFrictionAttr(0.03)
-    caster_mat.CreateDynamicFrictionAttr(0.025)
-    caster_mat.CreateRestitutionAttr(0.0)
+    wheel_mat = _make_phys(
+        f"{robot_path}/Materials/WheelMaterial", 1.5, 1.3, 'max')
+    caster_mat = _make_phys(
+        f"{robot_path}/Materials/CasterMaterial", 0.03, 0.025, 'avg')
 
-    # Bind materials to collision geometry
+    def _bind(prim, mat_prim):
+        if not prim or not prim.IsValid():
+            return False
+        b = UsdShade.MaterialBindingAPI.Apply(prim)
+        b.Bind(UsdShade.Material(mat_prim),
+               UsdShade.Tokens.weakerThanDescendants, 'physics')
+        return True
+
+    bound = 0
+    # The URDF importer puts wheel collision at /agv/<wheel>/collisions and
+    # the wheel link rigid body at /agv/<wheel>. Bind to BOTH the link and
+    # any nested collision/visual prims so PhysX picks it up.
     for wheel in ["left_wheel", "right_wheel"]:
-        wheel_prim = stage.GetPrimAtPath(f"{robot_path}/{wheel}")
-        if wheel_prim:
-            PhysxSchema.PhysxMaterialAPI.Apply(wheel_prim)
+        link = stage.GetPrimAtPath(f"{robot_path}/{wheel}")
+        if _bind(link, wheel_mat):
+            bound += 1
+        for child_name in ["collisions", "visuals"]:
+            child = stage.GetPrimAtPath(f"{robot_path}/{wheel}/{child_name}")
+            if _bind(child, wheel_mat):
+                bound += 1
 
     for caster in ["front_caster", "rear_caster"]:
-        caster_prim = stage.GetPrimAtPath(f"{robot_path}/{caster}")
-        if caster_prim:
-            PhysxSchema.PhysxMaterialAPI.Apply(caster_prim)
+        link = stage.GetPrimAtPath(f"{robot_path}/{caster}")
+        if _bind(link, caster_mat):
+            bound += 1
+        for child_name in ["collisions", "visuals"]:
+            child = stage.GetPrimAtPath(f"{robot_path}/{caster}/{child_name}")
+            if _bind(child, caster_mat):
+                bound += 1
 
-    print("  Wheels: μs=0.7/μd=0.6 (rubber on soil), Casters: μs=0.03/μd=0.025 (nylon)")
+    print(f"  Wheels: μs=1.5/μd=1.3 (high grip, max combine), "
+          f"Casters: μs=0.03/μd=0.025 (nylon) — bound to {bound} prims")
 
 
 def apply_visual_materials(stage, robot_path):

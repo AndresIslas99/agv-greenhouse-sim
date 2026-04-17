@@ -20,12 +20,14 @@ brain's agv_ui_backend (and any dashboards) see identical data in sim and real.
 """
 
 import json
+import math
 import rclpy
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, String
 from geometry_msgs.msg import Twist
+from sensor_msgs.msg import JointState
 
 # ODrive axis states (AxisState enum from odrive_protocol.hpp)
 IDLE = 1
@@ -47,6 +49,27 @@ class SimMotorGate(Node):
         self.last_linear = 0.0
         self.last_angular = 0.0
 
+        # Calibration mirrors drive_shaping_params.yaml so drive_debug
+        # publishes real per-wheel motor turns/s. Without these, debug
+        # fields are misleading zeros and the LLM agent can't diagnose
+        # the drive chain via telemetry.
+        self.declare_parameter('wheel_radius', 0.0781)
+        self.declare_parameter('track_width', 0.960)
+        self.declare_parameter('gear_ratio', 10.0)
+        self.declare_parameter('invert_left', True)
+        self.declare_parameter('invert_right', False)
+        self.wheel_radius = self.get_parameter('wheel_radius').value
+        self.track_width  = self.get_parameter('track_width').value
+        self.gear_ratio   = self.get_parameter('gear_ratio').value
+        self.left_sign    = -1.0 if self.get_parameter('invert_left').value else 1.0
+        self.right_sign   = -1.0 if self.get_parameter('invert_right').value else 1.0
+
+        # Latest shaped (post-ramp) motor commands and measured wheel rates.
+        self.shaped_linear = 0.0
+        self.shaped_angular = 0.0
+        self.left_meas_rps = 0.0
+        self.right_meas_rps = 0.0
+
         # Publishers (10 Hz, matching real odrive driver).
         # These timers MUST use wall clock. The real ODrive CAN node emits at
         # 10 Hz wall-time regardless of any simulator. Using sim clock here
@@ -67,6 +90,12 @@ class SimMotorGate(Node):
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.pub_cmd = self.create_publisher(Twist, 'cmd_vel_armed', qos)
         self.create_subscription(Twist, 'cmd_vel', self._on_cmd_vel, qos)
+
+        # Telemetry sources for accurate drive_debug. shaped_cmd_vel is the
+        # post-ramp body-frame Twist from sim_drive_shaping_node; joint_states
+        # gives us actual wheel angular velocities from Isaac.
+        self.create_subscription(Twist, 'shaped_cmd_vel', self._on_shaped, qos)
+        self.create_subscription(JointState, 'joint_states', self._on_joints, 10)
 
         self.get_logger().info('Motor gate started (disarmed)')
 
@@ -94,6 +123,30 @@ class SimMotorGate(Node):
         if self.armed and not self.e_stop_active:
             self.pub_cmd.publish(msg)
 
+    def _on_shaped(self, msg: Twist):
+        self.shaped_linear = msg.linear.x
+        self.shaped_angular = msg.angular.z
+
+    def _on_joints(self, msg: JointState):
+        # Wheel joints are usually named "left_wheel_joint" / "right_wheel_joint"
+        # in our URDF. Fall back to first/second velocity if not found.
+        if not msg.velocity:
+            return
+        left_idx = right_idx = None
+        for i, name in enumerate(msg.name):
+            n = name.lower()
+            if 'left' in n and 'wheel' in n:
+                left_idx = i
+            elif 'right' in n and 'wheel' in n:
+                right_idx = i
+        if left_idx is not None and left_idx < len(msg.velocity):
+            # Joint velocity is rad/s on the wheel axis. Convert to motor turns/s.
+            wheel_rps = msg.velocity[left_idx] / (2.0 * math.pi)
+            self.left_meas_rps = wheel_rps * self.gear_ratio
+        if right_idx is not None and right_idx < len(msg.velocity):
+            wheel_rps = msg.velocity[right_idx] / (2.0 * math.pi)
+            self.right_meas_rps = wheel_rps * self.gear_ratio
+
     def _publish_state(self):
         state = CLOSED_LOOP_CONTROL if self.armed else IDLE
         data = {
@@ -113,13 +166,23 @@ class SimMotorGate(Node):
         self.pub_state.publish(String(data=json.dumps(data)))
 
     def _publish_debug(self):
+        # Inverse kinematics on shaped_cmd_vel → per-wheel motor turns/s
+        # (matches the real ODrive driver's drive_debug fields). The sign is
+        # the chassis-frame motor direction; Isaac and the brain both apply
+        # their own per-wheel inversion downstream.
+        v_left_chassis  = self.shaped_linear - self.shaped_angular * self.track_width / 2.0
+        v_right_chassis = self.shaped_linear + self.shaped_angular * self.track_width / 2.0
+        denom = self.wheel_radius * 2.0 * math.pi
+        left_target  = (v_left_chassis  / denom) * self.gear_ratio * self.left_sign
+        right_target = (v_right_chassis / denom) * self.gear_ratio * self.right_sign
+
         data = {
             "cmd_linear":         self.last_linear,
             "cmd_angular":        self.last_angular,
-            "left_target":        0.0,
-            "right_target":       0.0,
-            "left_meas":          0.0,
-            "right_meas":         0.0,
+            "left_target":        round(left_target, 4),
+            "right_target":       round(right_target, 4),
+            "left_meas":          round(self.left_meas_rps, 4),
+            "right_meas":         round(self.right_meas_rps, 4),
             "armed":              self.armed,
             "e_stop":             self.e_stop_active,
             "cmd_valid":          True,
