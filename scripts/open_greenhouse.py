@@ -335,6 +335,7 @@ def _check_auto_unstick():
 def _drain_teleport(_event):
     _drain_control()
     _refresh_gt_cache()
+    _check_ejection_watchdog()
     _fix_friction()
     _check_auto_unstick()
     if _node is None or not _teleport_q:
@@ -364,26 +365,98 @@ def _drain_teleport(_event):
 # ─── Runtime friction fix (no USD regeneration required) ────────────────
 
 # Idealistic high-grip values. Real rubber-on-soil tops out around μ=0.8;
-# we use far higher because the simulator was getting massive wheel slip
-# (chassis at 5-10% of commanded speed) under the previous μ=5/2 with
-# combine='max' (effective contact μ=5). Per the brain LLM iteration log,
-# at vx=0.5 m/s the wheels spun at 0.37 m/s surface velocity but the
-# chassis only achieved 0.023 m/s — a 94% slip ratio.
+# we use higher because the simulator was getting massive wheel slip
+# (chassis at 5-10% of commanded speed) under the original μ=5/2 with
+# combine='max' (effective contact μ=5). Switching combine to 'multiply'
+# with both sides at μ=5 gave effective μ=25, which fixed the slip but
+# created a new failure mode: the brain reproduced three chassis ejections
+# under continuous Nav2 driving (round 33 GT.z→-200 m, round 34 pre-test
+# GT.z→-235 m, round 34 post-test instant ejection on /sim/reset). The
+# PhysX TGS solver becomes unstable at very high friction with the
+# chassis CoM offset (+0.2 m) plus caster bouncing — contact-resolve
+# impulses eject the rigid body.
 #
-# Two changes here to attack the slip:
-#   1. Bump GROUND from μ=2 → μ=5 so it matches the wheel.
-#   2. Switch combine mode from 'max' to 'multiply' on BOTH materials.
-#      With both at multiply: effective friction = wheel_μ × ground_μ
-#      = 5 × 5 = 25 (5× higher than the 'max' result of 5).
+# Stable middle ground: ground × wheel = 3 × 5 = 15. Still 3× the original
+# 'max' value, more than enough grip (μ=15 × 75 N normal = 1125 N per
+# wheel × 4 wheels / 30 kg = 150 m/s² available, vs 0.5 m/s² needed).
+# The accompanying ejection watchdog (_drain_teleport) catches the rare
+# residual case and auto-recovers.
 #
 # Note on PhysX combine priority: max > multiply > min > avg. If only one
 # side is 'multiply' and the other 'max', 'max' wins. Both sides MUST be
 # set to 'multiply' for the multiplicative combine to take effect.
 HI_FRICTION_WHEEL_STATIC  = 5.0
 HI_FRICTION_WHEEL_DYNAMIC = 4.5
-HI_FRICTION_GROUND_STATIC  = 5.0   # bumped from 2.0 to match wheel
-HI_FRICTION_GROUND_DYNAMIC = 4.5   # bumped from 1.8 to match wheel
-HI_FRICTION_COMBINE = 'multiply'   # was 'max' → effective μ = 5; now × → 25
+HI_FRICTION_GROUND_STATIC  = 3.0   # 5.0 → 3.0 (effective static  μ = 5×3 = 15)
+HI_FRICTION_GROUND_DYNAMIC = 2.7   # 4.5 → 2.7 (effective dynamic μ = 4.5×2.7 ≈ 12)
+HI_FRICTION_COMBINE = 'multiply'   # priority above 'min'/'avg'; both sides set
+
+
+# Ejection watchdog. The friction reduction above eliminates the bulk of
+# the TGS solver instability, but residual edge cases can still throw
+# the chassis through the floor or up into the air. The watchdog runs
+# on the Kit main thread (inside _drain_teleport) and pushes a synthetic
+# teleport to spawn whenever the cached GT pose looks impossible.
+#
+# Spawn (5.5, 0.0, 0.2) is the value baked into greenhouse_with_robot.usd
+# by setup_omnigraph_standalone.py:89 (ROBOT_START_POS). Keep in sync.
+WATCHDOG_SPAWN      = (5.5, 0.0, 0.2, 0.0)   # x, y, z, yaw
+WATCHDOG_Z_MIN      = -0.5     # below this z = robot fell through floor
+WATCHDOG_Z_DRIFT    =  1.0     # |z - spawn_z| above this = ejected upward
+WATCHDOG_COOLDOWN_S =  2.0     # min seconds between auto-recoveries
+_watchdog_last_fire_t = 0.0    # wall-clock of last auto-teleport
+
+
+def _check_ejection_watchdog():
+    """Detect impossible chassis poses and queue an auto-recovery teleport.
+
+    Runs every Kit post-update on the main thread. Reads the GT cache
+    populated by _refresh_gt_cache() and, if the z-height is below the
+    floor or far above spawn, pushes a synthetic teleport to WATCHDOG_SPAWN
+    onto _teleport_q (the same queue /sim/reset_request uses, so the
+    rest of the pipeline is unchanged). Rate-limited to one fire per
+    WATCHDOG_COOLDOWN_S to absorb the 1-2 ticks of propagation latency
+    between dynamic_control.set_rigid_body_pose() and the next GT sample.
+    """
+    global _watchdog_last_fire_t
+
+    with _gt_pose_lock:
+        gt = _gt_pose_cache
+    if gt is None:
+        return
+    z = gt[2]
+    spawn_z = WATCHDOG_SPAWN[2]
+    if not (z < WATCHDOG_Z_MIN or abs(z - spawn_z) > WATCHDOG_Z_DRIFT):
+        return
+
+    import time
+    now = time.time()
+    if (now - _watchdog_last_fire_t) <= WATCHDOG_COOLDOWN_S:
+        return
+    _watchdog_last_fire_t = now
+
+    sx, sy, sz, syaw = WATCHDOG_SPAWN
+    sys.stderr.write(
+        f'[AGV][watchdog] ejection detected '
+        f'(GT x={gt[0]:.1f} y={gt[1]:.1f} z={z:.2f}) — '
+        f'auto-teleporting to spawn ({sx},{sy},{sz})\n')
+    sys.stderr.flush()
+
+    with _teleport_q_lock:
+        _teleport_q.append((sx, sy, sz, syaw))
+
+    # Best-effort event for sim_api / brain. Falls back silently — the
+    # watchdog must never propagate an exception into the post-update.
+    if _node is not None:
+        try:
+            _node.events_pub.publish(String(data=json.dumps({
+                't_sim': _node.get_clock().now().nanoseconds * 1e-9,
+                'event': 'watchdog_recovery',
+                'gt_x': gt[0], 'gt_y': gt[1], 'gt_z': z,
+                'spawn': list(WATCHDOG_SPAWN),
+            })))
+        except Exception:
+            pass
 
 
 def _fix_friction():
