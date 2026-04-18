@@ -78,7 +78,8 @@ _UNSTICK_NUDGE_M    = 0.05    # micro-teleport magnitude (body x)
 _UNSTICK_COOLDOWN_S = 5.0     # don't unstick again within this window
 _unstick_state = {'cmd_lin': 0.0, 'last_pose_t': None, 'last_pose_xy': None,
                   'stuck_since': None, 'last_unstick_t': 0.0,
-                  'nudge_dir': 1}
+                  'nudge_dir': 1,
+                  'motor_enabled': False}  # latest /agv/motor_enable; guards nudging
 
 
 def _yaw_from_quat(qx, qy, qz, qw):
@@ -111,6 +112,13 @@ if ROS_OK:
             # detection.
             self.create_subscription(
                 Twist, '/agv/cmd_vel', self._on_cmd_vel, qos)
+            # Track motor_enable so auto-unstick can gate on it. Without
+            # this the nudge fires on every cooldown tick whenever the
+            # brain has EVER published a non-zero cmd_vel, even while the
+            # motor is disarmed (e.g. during /reset). That was silently
+            # translating the robot 5 cm every 5 s.
+            self.create_subscription(
+                Bool, '/agv/motor_enable', self._on_motor_enable, latched)
             self.events_pub = self.create_publisher(
                 String, '/agv/sim/events', 50)
             self.reset_done_pub = self.create_publisher(
@@ -164,6 +172,16 @@ if ROS_OK:
                 _unstick_state['nudge_dir'] = -1
             elif msg.linear.x > 0:
                 _unstick_state['nudge_dir'] = 1
+
+        def _on_motor_enable(self, msg: Bool):
+            _unstick_state['motor_enabled'] = bool(msg.data)
+            if not msg.data:
+                # Disarming the motor invalidates the last cmd_vel — the
+                # brain's desired linear velocity is effectively 0. Reset
+                # the stuck-accumulator so a stale non-zero cmd_lin from
+                # before the disarm doesn't keep the unstick armed.
+                _unstick_state['cmd_lin'] = 0.0
+                _unstick_state['stuck_since'] = None
 
 
 # ─── Teleport (runs on Isaac main thread) ────────────────────────────────
@@ -317,7 +335,17 @@ def _check_auto_unstick():
     """Detect friction-lock (cmd > threshold but chassis static for >Ns)
     and queue a micro-teleport nudge to break it. Runs on the Isaac main
     thread inside _drain_teleport so it has access to the cached GT pose.
+
+    Gated on /agv/motor_enable — if the brain has the motor disarmed
+    (e.g. mid /sim/reset) the chassis being "static under a non-zero
+    commanded velocity" is the expected behavior, not a stuck condition.
+    Without this gate the unstick nudges a stationary robot +5 cm every
+    5 s during the /reset convergence window, making POST /reset fail
+    to converge.
     """
+    if not _unstick_state.get('motor_enabled', False):
+        _unstick_state['stuck_since'] = None
+        return
     import time as _t
     cached = _gt_pose_cache
     if cached is None:
@@ -372,6 +400,7 @@ def _check_auto_unstick():
 
 
 def _drain_teleport(_event):
+    global _last_teleport_wall_t
     _drain_control()
     _refresh_gt_cache()
     _check_ejection_watchdog()
@@ -379,6 +408,7 @@ def _drain_teleport(_event):
     _check_auto_unstick()
     if _node is None or not _teleport_q:
         return
+    import time as _t
     while True:
         with _teleport_q_lock:
             if not _teleport_q:
@@ -390,6 +420,10 @@ def _drain_teleport(_event):
         if not ok:
             ok = _apply_teleport_usd(x, y, z, yaw)
             method = 'usd_xform'
+
+        # Stamp the teleport time so the ejection watchdog gives the
+        # physics solver a grace period to settle before checking z.
+        _last_teleport_wall_t = _t.time()
 
         try:
             _node.reset_done_pub.publish(Bool(data=bool(ok)))
@@ -443,7 +477,9 @@ WATCHDOG_SPAWN      = (5.5, 0.0, 0.2, 0.0)   # x, y, z, yaw
 WATCHDOG_Z_MIN      = -0.5     # below this z = robot fell through floor
 WATCHDOG_Z_DRIFT    =  1.0     # |z - spawn_z| above this = ejected upward
 WATCHDOG_COOLDOWN_S =  2.0     # min seconds between auto-recoveries
+WATCHDOG_POST_TELEPORT_GRACE_S = 1.5  # quiet the watchdog right after a teleport
 _watchdog_last_fire_t = 0.0    # wall-clock of last auto-teleport
+_last_teleport_wall_t = 0.0    # wall-clock of last applied teleport (grace period)
 
 
 def _check_ejection_watchdog():
@@ -470,6 +506,13 @@ def _check_ejection_watchdog():
 
     import time
     now = time.time()
+    # Post-teleport grace: a fresh set_rigid_body_pose can briefly show
+    # transient solver states (z spikes while casters resolve contact)
+    # that the watchdog would interpret as ejection. Skip the check for
+    # WATCHDOG_POST_TELEPORT_GRACE_S after the most recent teleport so
+    # the legit user-requested pose has time to settle.
+    if (now - _last_teleport_wall_t) < WATCHDOG_POST_TELEPORT_GRACE_S:
+        return
     if (now - _watchdog_last_fire_t) <= WATCHDOG_COOLDOWN_S:
         return
     _watchdog_last_fire_t = now
