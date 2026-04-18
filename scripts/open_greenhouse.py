@@ -446,24 +446,14 @@ def _fix_friction():
             return False
 
     # Caster gets a SEPARATE low-friction material with combine='min'.
+    # Caster-vs-ground = min(0.05, ground μ) = 0.05 → caster slides freely
+    # on the ground without dragging the chassis. This makes caster collision
+    # safe to keep ENABLED — earlier versions disabled caster collision as a
+    # workaround when the bindings weren't taking effect, but that left the
+    # 30 kg chassis (CoM at +0.2 m forward of the wheel axis) supported only
+    # by the two drive wheels, which made it tip forward and look "fallen"
+    # in the viewport. Casters enabled = chassis sits flat on 4 contacts.
     caster_mat = _make_mat('/agv/Materials/HiFrictionCaster', 0.05, 0.04, 'min')
-
-    # ALSO disable caster collision entirely. This was the only way to stop
-    # them from pinning the chassis even with low μ + min combine — with
-    # 30 kg chassis weight distributed across 2 wheels + 2 casters, the
-    # casters carry significant normal force and even μ=0.05 produces enough
-    # drag to slow the wheel-driven chassis to ~5% efficiency. The robot
-    # will tilt forward/backward briefly under accel/decel but stays on
-    # its 2 drive wheels in steady state. Real ODrive AGV has rolling
-    # casters — this is a sim-side approximation.
-    try:
-        for caster_name in ('front_caster', 'rear_caster'):
-            for sub in ('collisions',):
-                p = stage.GetPrimAtPath(f'/agv/{caster_name}/{sub}')
-                if p and p.IsValid():
-                    UsdPhysics.CollisionAPI(p).GetCollisionEnabledAttr().Set(False)
-    except Exception as e:
-        sys.stderr.write(f'[AGV][friction] caster disable warning: {e}\n')
 
     wheel_targets = []
     caster_targets = []
