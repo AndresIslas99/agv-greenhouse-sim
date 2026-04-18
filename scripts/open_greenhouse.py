@@ -206,7 +206,16 @@ def _refresh_gt_cache():
 
 
 def _apply_teleport_dc(x, y, z, yaw):
-    """Preferred path: omni.isaac.dynamic_control. Fast and physics-correct."""
+    """Preferred path: omni.isaac.dynamic_control. Fast and physics-correct.
+
+    Zeroes linear AND angular velocity on EVERY body in the articulation
+    (chassis + 2 drive wheels + 2 casters), not just the root. With the
+    high-friction binding (effective μ=15), wheels left spinning from a
+    previous drive command would couple back into chassis translation
+    via ground friction and produce a residual ~5–10 mm/s drift after
+    the teleport — visible from the brain side as `/reset` "didn't put
+    me where I asked". Per-body zeroing eliminates this.
+    """
     try:
         from omni.isaac.dynamic_control import _dynamic_control as dc
     except Exception:
@@ -223,8 +232,38 @@ def _apply_teleport_dc(x, y, z, yaw):
     qw = math.cos(yaw * 0.5)
     pose = dc.Transform([float(x), float(y), float(z)], [qx, qy, qz, qw])
     dci.set_rigid_body_pose(root, pose)
-    dci.set_rigid_body_linear_velocity(root, [0.0, 0.0, 0.0])
-    dci.set_rigid_body_angular_velocity(root, [0.0, 0.0, 0.0])
+
+    # Zero velocities on every body (root + each link). Wheels are
+    # joint-driven, so leaving them spinning translates the chassis via
+    # contact friction even when the brain has disarmed the motor.
+    zero = [0.0, 0.0, 0.0]
+    try:
+        body_count = dci.get_articulation_body_count(art)
+    except Exception:
+        body_count = 0
+    if body_count > 0:
+        for i in range(body_count):
+            try:
+                body = dci.get_articulation_body(art, i)
+                if body and body != dc.INVALID_HANDLE:
+                    dci.set_rigid_body_linear_velocity(body, zero)
+                    dci.set_rigid_body_angular_velocity(body, zero)
+            except Exception:
+                pass
+    else:
+        # Fallback when body count isn't available — at minimum kill root.
+        dci.set_rigid_body_linear_velocity(root, zero)
+        dci.set_rigid_body_angular_velocity(root, zero)
+
+    # Also zero joint velocities directly (covers DOF state in addition to
+    # rigid-body state). On articulations these can be set in one call.
+    try:
+        dof_count = dci.get_articulation_dof_count(art)
+        if dof_count > 0:
+            dci.set_articulation_dof_velocities(art, [0.0] * dof_count)
+    except Exception:
+        pass
+
     return True
 
 
