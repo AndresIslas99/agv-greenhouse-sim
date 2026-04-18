@@ -45,7 +45,7 @@ try:
     import rclpy
     from rclpy.node import Node
     from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
-    from geometry_msgs.msg import PoseStamped
+    from geometry_msgs.msg import PoseStamped, Twist
     from std_msgs.msg import String, Bool
     ROS_OK = True
 except Exception as exc:
@@ -67,6 +67,18 @@ _post_update_sub = None
 _last_collision_t = {}
 _COLL_DEBOUNCE_S = 0.5
 _AUTO_PLAY = os.environ.get('AGV_AUTO_PLAY', '1') != '0'
+
+# Auto-unstick: when the brain is commanding non-trivial motion but the
+# chassis isn't actually moving (PhysX friction lock, common after teleport
+# or under heavy load), nudge the robot ±5cm to break the contact state.
+_UNSTICK_CMD_THRESH = 0.1     # m/s — only consider stuck if commanded > this
+_UNSTICK_GT_THRESH  = 0.01    # m/s — actual chassis speed below this counts
+_UNSTICK_DURATION_S = 3.0     # how long the above must hold to trigger
+_UNSTICK_NUDGE_M    = 0.05    # micro-teleport magnitude (body x)
+_UNSTICK_COOLDOWN_S = 5.0     # don't unstick again within this window
+_unstick_state = {'cmd_lin': 0.0, 'last_pose_t': None, 'last_pose_xy': None,
+                  'stuck_since': None, 'last_unstick_t': 0.0,
+                  'nudge_dir': 1}
 
 
 def _yaw_from_quat(qx, qy, qz, qw):
@@ -94,6 +106,11 @@ if ROS_OK:
                 PoseStamped, '/agv/sim/reset_request', self._on_reset, qos)
             self.create_subscription(
                 String, '/agv/sim/control', self._on_control, qos)
+            # Watch /agv/cmd_vel for the auto-unstick detector. We only
+            # need linear.x — the rest is irrelevant for friction-lock
+            # detection.
+            self.create_subscription(
+                Twist, '/agv/cmd_vel', self._on_cmd_vel, qos)
             self.events_pub = self.create_publisher(
                 String, '/agv/sim/events', 50)
             self.reset_done_pub = self.create_publisher(
@@ -140,6 +157,13 @@ if ROS_OK:
             with _control_q_lock:
                 _control_q.append(cmd)
             self.get_logger().info(f'control command queued: {cmd}')
+
+        def _on_cmd_vel(self, msg: Twist):
+            _unstick_state['cmd_lin'] = float(msg.linear.x)
+            if msg.linear.x < 0:
+                _unstick_state['nudge_dir'] = -1
+            elif msg.linear.x > 0:
+                _unstick_state['nudge_dir'] = 1
 
 
 # ─── Teleport (runs on Isaac main thread) ────────────────────────────────
@@ -250,10 +274,69 @@ def _drain_control():
                   file=sys.stderr)
 
 
+def _check_auto_unstick():
+    """Detect friction-lock (cmd > threshold but chassis static for >Ns)
+    and queue a micro-teleport nudge to break it. Runs on the Isaac main
+    thread inside _drain_teleport so it has access to the cached GT pose.
+    """
+    import time as _t
+    cached = _gt_pose_cache
+    if cached is None:
+        return
+    now = _t.time()
+    x, y = cached[0], cached[1]
+    last_t = _unstick_state['last_pose_t']
+    last_xy = _unstick_state['last_pose_xy']
+    _unstick_state['last_pose_t'] = now
+    _unstick_state['last_pose_xy'] = (x, y)
+    if last_t is None or last_xy is None:
+        return
+    dt = now - last_t
+    if dt <= 0.0 or dt > 1.0:
+        return
+    speed = math.hypot(x - last_xy[0], y - last_xy[1]) / dt
+    cmd_lin = abs(_unstick_state['cmd_lin'])
+    is_stuck_now = cmd_lin > _UNSTICK_CMD_THRESH and speed < _UNSTICK_GT_THRESH
+    if not is_stuck_now:
+        _unstick_state['stuck_since'] = None
+        return
+    if _unstick_state['stuck_since'] is None:
+        _unstick_state['stuck_since'] = now
+        return
+    stuck_dur = now - _unstick_state['stuck_since']
+    if stuck_dur < _UNSTICK_DURATION_S:
+        return
+    if now - _unstick_state['last_unstick_t'] < _UNSTICK_COOLDOWN_S:
+        return
+    # Nudge in commanded direction by ±5cm in body x. Keep yaw, z.
+    yaw = _yaw_from_quat(cached[3], cached[4], cached[5], cached[6])
+    sign = _unstick_state['nudge_dir']
+    nx = x + sign * _UNSTICK_NUDGE_M * math.cos(yaw)
+    ny = y + sign * _UNSTICK_NUDGE_M * math.sin(yaw)
+    nz = cached[2]
+    with _teleport_q_lock:
+        _teleport_q.append((nx, ny, nz, yaw))
+    _unstick_state['last_unstick_t'] = now
+    _unstick_state['stuck_since'] = None
+    if _node is not None:
+        try:
+            _node.events_pub.publish(String(data=json.dumps({
+                't_sim': _node.get_clock().now().nanoseconds * 1e-9,
+                'event': 'sim_unstick',
+                'cmd_lin': cmd_lin,
+                'measured_speed': speed,
+                'stuck_duration_s': round(stuck_dur, 2),
+                'nudge_m': sign * _UNSTICK_NUDGE_M,
+            })))
+        except Exception:
+            pass
+
+
 def _drain_teleport(_event):
     _drain_control()
     _refresh_gt_cache()
     _fix_friction()
+    _check_auto_unstick()
     if _node is None or not _teleport_q:
         return
     while True:
@@ -335,6 +418,17 @@ def _fix_friction():
                               HI_FRICTION_WHEEL_STATIC, HI_FRICTION_WHEEL_DYNAMIC)
         ground_mat = _make_mat('/World/Materials/HiFrictionGround',
                                HI_FRICTION_GROUND_STATIC, HI_FRICTION_GROUND_DYNAMIC)
+        # Low-friction "obstacle" material for crop_rows / walls / crates.
+        # Without this binding, side contact between a wheel and one of
+        # those geometries used the PhysX default friction (~0.5), which
+        # — combined with the wheel's μ=5 via combine='max' — produced
+        # huge tangential force spikes on glancing contact. That spike
+        # showed up as IMU jolts and triggered EKF divergence in tight
+        # aisles (wp10 at y=4.4 was the canonical victim). Binding μ=0.3
+        # with combine='min' caps the contact at the obstacle side, so a
+        # wheel scrape just slides past instead of locking.
+        obstacle_mat = _make_mat('/World/Materials/LoFrictionObstacle',
+                                 0.3, 0.25, 'min')
     except Exception as e:
         sys.stderr.write(f'[AGV][friction] material creation failed: {e}\n')
         sys.stderr.flush()
@@ -374,6 +468,7 @@ def _fix_friction():
     wheel_targets = []
     caster_targets = []
     ground_targets = []
+    obstacle_targets = []
     for prim in stage.Traverse():
         path = str(prim.GetPath())
         if path.startswith(ROBOT_PRIM):
@@ -391,19 +486,30 @@ def _fix_friction():
                     wheel_targets.append((prim, path))
         elif 'ground' in path.lower() or path == '/World/Plane':
             ground_targets.append((prim, path))
+        elif (path.startswith('/World/CropRows/') or
+              path.startswith('/World/Walls/') or
+              path.startswith('/World/Obstacles/') or
+              path.startswith('/World/Props/')):
+            # Bind only to prims that actually have collision geometry —
+            # the parent xforms don't matter for PhysX contact pairs.
+            if prim.HasAPI(UsdPhysics.CollisionAPI):
+                obstacle_targets.append((prim, path))
 
     bound_wheels = sum(1 for prim, _ in wheel_targets if _bind(prim, wheel_mat))
     bound_casters = sum(1 for prim, _ in caster_targets if _bind(prim, caster_mat))
     bound_ground = sum(1 for prim, _ in ground_targets if _bind(prim, ground_mat))
+    bound_obstacles = sum(1 for prim, _ in obstacle_targets if _bind(prim, obstacle_mat))
 
     _fix_friction.done = True
     sys.stderr.write(
         f'[AGV][friction] wheels(μ={HI_FRICTION_WHEEL_STATIC}/'
         f'{HI_FRICTION_WHEEL_DYNAMIC},max) ground(μ={HI_FRICTION_GROUND_STATIC}/'
-        f'{HI_FRICTION_GROUND_DYNAMIC},max) casters(μ=0.05/0.04,avg): bound to '
+        f'{HI_FRICTION_GROUND_DYNAMIC},max) casters(μ=0.05/0.04,min) '
+        f'obstacles(μ=0.3/0.25,min): bound to '
         f'{bound_wheels}/{len(wheel_targets)} wheel + '
         f'{bound_casters}/{len(caster_targets)} caster + '
-        f'{bound_ground}/{len(ground_targets)} ground\n')
+        f'{bound_ground}/{len(ground_targets)} ground + '
+        f'{bound_obstacles}/{len(obstacle_targets)} obstacle\n')
     if wheel_targets:
         sys.stderr.write(f'[AGV][friction] wheel paths: '
                          f'{", ".join(p for _, p in wheel_targets[:4])}\n')
