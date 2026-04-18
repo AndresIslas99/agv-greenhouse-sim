@@ -364,15 +364,26 @@ def _drain_teleport(_event):
 # ─── Runtime friction fix (no USD regeneration required) ────────────────
 
 # Idealistic high-grip values. Real rubber-on-soil tops out around μ=0.8;
-# we go to 2.0 because the simulator was getting massive wheel slip
-# (chassis at 15% of commanded speed) due to physics materials being
-# CREATED by import_robot_usd.py but never BOUND to the wheel collision
-# geometry. Until the USD is regenerated with proper MaterialBindingAPI
-# bindings, we bind them here at runtime.
+# we use far higher because the simulator was getting massive wheel slip
+# (chassis at 5-10% of commanded speed) under the previous μ=5/2 with
+# combine='max' (effective contact μ=5). Per the brain LLM iteration log,
+# at vx=0.5 m/s the wheels spun at 0.37 m/s surface velocity but the
+# chassis only achieved 0.023 m/s — a 94% slip ratio.
+#
+# Two changes here to attack the slip:
+#   1. Bump GROUND from μ=2 → μ=5 so it matches the wheel.
+#   2. Switch combine mode from 'max' to 'multiply' on BOTH materials.
+#      With both at multiply: effective friction = wheel_μ × ground_μ
+#      = 5 × 5 = 25 (5× higher than the 'max' result of 5).
+#
+# Note on PhysX combine priority: max > multiply > min > avg. If only one
+# side is 'multiply' and the other 'max', 'max' wins. Both sides MUST be
+# set to 'multiply' for the multiplicative combine to take effect.
 HI_FRICTION_WHEEL_STATIC  = 5.0
 HI_FRICTION_WHEEL_DYNAMIC = 4.5
-HI_FRICTION_GROUND_STATIC  = 2.0
-HI_FRICTION_GROUND_DYNAMIC = 1.8
+HI_FRICTION_GROUND_STATIC  = 5.0   # bumped from 2.0 to match wheel
+HI_FRICTION_GROUND_DYNAMIC = 4.5   # bumped from 1.8 to match wheel
+HI_FRICTION_COMBINE = 'multiply'   # was 'max' → effective μ = 5; now × → 25
 
 
 def _fix_friction():
@@ -415,9 +426,11 @@ def _fix_friction():
 
     try:
         wheel_mat = _make_mat('/agv/Materials/HiFrictionWheel',
-                              HI_FRICTION_WHEEL_STATIC, HI_FRICTION_WHEEL_DYNAMIC)
+                              HI_FRICTION_WHEEL_STATIC, HI_FRICTION_WHEEL_DYNAMIC,
+                              combine=HI_FRICTION_COMBINE)
         ground_mat = _make_mat('/World/Materials/HiFrictionGround',
-                               HI_FRICTION_GROUND_STATIC, HI_FRICTION_GROUND_DYNAMIC)
+                               HI_FRICTION_GROUND_STATIC, HI_FRICTION_GROUND_DYNAMIC,
+                               combine=HI_FRICTION_COMBINE)
         # Low-friction "obstacle" material for crop_rows / walls / crates.
         # Without this binding, side contact between a wheel and one of
         # those geometries used the PhysX default friction (~0.5), which
@@ -493,9 +506,13 @@ def _fix_friction():
     _fix_friction.done = True
     sys.stderr.write(
         f'[AGV][friction] wheels(μ={HI_FRICTION_WHEEL_STATIC}/'
-        f'{HI_FRICTION_WHEEL_DYNAMIC},max) ground(μ={HI_FRICTION_GROUND_STATIC}/'
-        f'{HI_FRICTION_GROUND_DYNAMIC},max) casters(μ=0.05/0.04,min) '
-        f'obstacles(μ=0.3/0.25,min): bound to '
+        f'{HI_FRICTION_WHEEL_DYNAMIC},{HI_FRICTION_COMBINE}) '
+        f'ground(μ={HI_FRICTION_GROUND_STATIC}/'
+        f'{HI_FRICTION_GROUND_DYNAMIC},{HI_FRICTION_COMBINE}) '
+        f'effective_contact_μ='
+        f'{HI_FRICTION_WHEEL_STATIC * HI_FRICTION_GROUND_STATIC:.1f}/'
+        f'{HI_FRICTION_WHEEL_DYNAMIC * HI_FRICTION_GROUND_DYNAMIC:.1f} '
+        f'casters(μ=0.05/0.04,min) obstacles(μ=0.3/0.25,min): bound to '
         f'{bound_wheels}/{len(wheel_targets)} wheel + '
         f'{bound_casters}/{len(caster_targets)} caster + '
         f'{bound_ground}/{len(ground_targets)} ground + '
