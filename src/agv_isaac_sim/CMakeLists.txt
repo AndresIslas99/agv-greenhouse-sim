@@ -20,6 +20,7 @@ install(PROGRAMS
   scripts/sim_global_odom.py
   scripts/sim_motor_gate.py
   scripts/sim_odom_tf_broadcaster.py
+  scripts/sim_pointcloud_downsample.py
   scripts/sim_wheel_odom_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )

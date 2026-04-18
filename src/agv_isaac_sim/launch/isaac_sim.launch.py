@@ -191,4 +191,29 @@ def generate_launch_description():
             ],
             output='screen',
         ),
+
+        # Pointcloud downsample relay: /agv/zed/point_cloud/cloud_raw
+        # (11 MB HD720 from OmniGraph) → /agv/zed/point_cloud/cloud_registered
+        # (~700 kB with stride=4). Keeps the cloud within the WiFi bandwidth
+        # budget; the full-res cloud only exists on the sim host and never
+        # crosses the network.
+        Node(
+            package='agv_isaac_sim',
+            executable='sim_pointcloud_downsample.py',
+            name='sim_pointcloud_downsample',
+            namespace=ns,
+            parameters=[{
+                'use_sim_time': True,
+                # OmniGraph publishes the cloud unorganized (h=1, w=N), so
+                # the downsampler applies stride along the single axis. Use
+                # 16 to mimic a 2D 4×4 stride (16× point reduction).
+                # 921 600 → 57 600 pts × 12 B ≈ 700 kB/msg.
+                'stride': 16,
+            }],
+            remappings=[
+                ('cloud_raw', '/agv/zed/point_cloud/cloud_raw'),
+                ('cloud_registered', '/agv/zed/point_cloud/cloud_registered'),
+            ],
+            output='screen',
+        ),
     ])
