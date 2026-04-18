@@ -63,9 +63,13 @@ WALL_SPECS = [
     ("East", (28.0, 0.0, 1.5), (0.2, 15.0, 3.0)),
 ]
 
-# Crop rows: 6 Y positions, two sections
+# Crop rows: 6 Y positions, two sections.
+# ROW_SIZE width (y) was 1.0 — too thick: gave only 0.10 m clearance per
+# side for the 1.01 m wide robot navigating the central aisles. Set to
+# 0.5 m so the gap between adjacent rows opens to 1.7 m. Keep this in
+# sync with config/world_config.yaml crop_rows.width.
 ROW_Y_POSITIONS = [-5.5, -3.3, -1.1, 1.1, 3.3, 5.5]
-ROW_SIZE = (20.0, 1.0, 1.5)
+ROW_SIZE = (20.0, 0.5, 1.5)
 ROW_Z = 0.75
 FRONT_ROWS_X = 17.5
 REAR_ROWS_X = -6.5

@@ -40,7 +40,13 @@ walls:
 
 crop_rows:
   length: 20.0
-  width: 1.0
+  # 0.5 m matches real-world greenhouse row width (lettuce/tomato/cucumber:
+  # 0.3-0.6 m typical). 1.0 m left only 0.10 m of clearance per side for
+  # the 1.01 m wide robot, so any lateral oscillation would clip the row
+  # foliage and trigger an IMU spike → EKF divergence. With width 0.5 the
+  # gap between adjacent rows (centers 2.2 m apart) opens to 1.7 m,
+  # giving the robot 0.35 m clearance per side.
+  width: 0.5
   height: 1.5
   center_x: 16.0
   y_positions: [-5.5, -3.3, -1.1, 1.1, 3.3, 5.5]
