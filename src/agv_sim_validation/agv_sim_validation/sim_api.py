@@ -103,6 +103,11 @@ class SimState(Node):
                                  self._on_episode, latched)
         self.create_subscription(Image, '/agv/zed/left/image_rect_color',
                                  self._on_image, cam_qos)
+        # /agv/sim/reset_done is latched. POST /reset uses it to confirm
+        # the teleport actually applied before responding.
+        self._reset_done_event = threading.Event()
+        self.create_subscription(Bool, '/agv/sim/reset_done',
+                                 self._on_reset_done, latched)
 
         self.reset_pub = self.create_publisher(
             PoseStamped, '/agv/sim/reset_request', latched)
@@ -236,14 +241,29 @@ class SimState(Node):
             age = time.time() - self._latest_jpeg_t
             return self._latest_jpeg, age
 
-    def request_reset(self, pose: ResetPose) -> dict:
-        """Publish a reset request. The in-sim handler (open_greenhouse.py)
-        consumes /agv/sim/reset_request and physically teleports the robot
-        via omni.isaac.dynamic_control, zeroing linear/angular velocity.
+    def _on_reset_done(self, _msg: Bool):
+        # Handler signals each successful teleport with True. We just flag
+        # the event; request_reset clears it before publishing so we know
+        # the next True is for THIS request, not a previous one.
+        self._reset_done_event.set()
+
+    def request_reset(self, pose: ResetPose,
+                      wait_timeout_s: float = 1.0) -> dict:
+        """Publish a reset request and SYNCHRONOUSLY wait for confirmation.
+
+        The in-sim handler (open_greenhouse.py) consumes
+        /agv/sim/reset_request, physically teleports the robot via
+        omni.isaac.dynamic_control, and publishes /agv/sim/reset_done=True
+        on the next Kit post-update event. We block here up to
+        wait_timeout_s for that confirmation, so the caller knows the
+        teleport actually materialized before issuing further commands.
 
         We also disarm the motor gate and pulse e-stop so the brain doesn't
         try to drive into the new pose with stale commands.
         """
+        # Clear before publish so we don't latch a previous teleport's done
+        self._reset_done_event.clear()
+
         msg = PoseStamped()
         msg.header.frame_id = 'world'
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -255,16 +275,20 @@ class SimState(Node):
         msg.pose.orientation.z = sy
         msg.pose.orientation.w = cy
         self.reset_pub.publish(msg)
-        # Disarm + e-stop so the robot stops moving while teleport applies
         self.motor_enable_pub.publish(Bool(data=False))
         self.estop_pub.publish(Bool(data=True))
+
+        confirmed = self._reset_done_event.wait(timeout=wait_timeout_s)
         return {
             'ok': True,
+            'confirmed': confirmed,
             'requested': {'x': pose.x, 'y': pose.y, 'yaw': pose.yaw, 'z': pose.z},
-            'note': ('Teleport request sent on /agv/sim/reset_request. '
-                     'In-sim handler will apply within 1 physics step and '
-                     'confirm on /agv/sim/reset_done. Motors disarmed; '
-                     're-arm via POST /motor/enable {"on": true} after.'),
+            'note': (
+                'Teleport applied (handler confirmed via /agv/sim/reset_done).'
+                if confirmed else
+                f'Teleport requested but no /agv/sim/reset_done within '
+                f'{wait_timeout_s}s. Handler may be down or queue saturated.'
+            ),
         }
 
     def set_motor_enable(self, on: bool) -> dict:
@@ -282,10 +306,30 @@ class SimState(Node):
                         'Executed by the in-sim handler on the next Kit frame.'}
 
     def sim_restart(self) -> dict:
+        """Self-healing restart of Isaac Sim.
+
+        Three cases handled:
+          (a) Supervisor IS running → write the restart flag, SIGTERM
+              Isaac, supervisor relaunches it (auto-play picks up).
+          (b) Supervisor is NOT running but Isaac IS → SIGTERM Isaac,
+              then subprocess.Popen run_isaac_sim.sh directly so we don't
+              leave the host without a sim.
+          (c) Neither running → just subprocess.Popen run_isaac_sim.sh.
+
+        Returns a structured dict so the LLM agent on the brain can poll
+        /state until gt_pose comes back to confirm recovery.
+        """
         import subprocess, signal
         restart_flag = '/tmp/agv_restart_isaac'
         with open(restart_flag, 'w') as f:
             f.write('restart')
+
+        # Detect supervisor presence
+        sup = subprocess.run(['pgrep', '-f', 'run_isaac_supervised.sh'],
+                             capture_output=True, text=True)
+        supervisor_running = bool(sup.stdout.strip())
+
+        # Find live Isaac processes
         result = subprocess.run(
             ['pgrep', '-f', 'bin/isaacsim.*open_greenhouse'],
             capture_output=True, text=True)
@@ -297,13 +341,56 @@ class SimState(Node):
                     killed.append(int(pid))
                 except Exception:
                     pass
+
+        # Case (b) and (c): if no supervisor, we're responsible for relaunch
+        relaunched_directly = False
+        if not supervisor_running:
+            # Wait briefly for the SIGTERM'd Isaac to actually exit so the
+            # GPU / DDS handles release before the new instance grabs them.
+            import time as _t
+            for _ in range(20):  # up to 2 s
+                still = subprocess.run(
+                    ['pgrep', '-f', 'bin/isaacsim.*open_greenhouse'],
+                    capture_output=True, text=True)
+                if not still.stdout.strip():
+                    break
+                _t.sleep(0.1)
+            try:
+                env = os.environ.copy()
+                env.setdefault('DISPLAY', ':1')
+                env.setdefault('XAUTHORITY', '/run/user/1000/gdm/Xauthority')
+                # Use Popen with start_new_session so it survives the
+                # FastAPI worker exit. stdout to a known log file.
+                log_path = '/tmp/isaac_supervised.log'
+                with open(log_path, 'ab') as logf:
+                    subprocess.Popen(
+                        ['/home/andres/agv-sim/run_isaac_sim.sh'],
+                        cwd='/home/andres/agv-sim',
+                        env=env,
+                        stdin=subprocess.DEVNULL,
+                        stdout=logf, stderr=logf,
+                        start_new_session=True,
+                    )
+                relaunched_directly = True
+            except Exception as e:
+                return {
+                    'ok': False, 'action': 'restart',
+                    'killed_pids': killed,
+                    'supervisor_running': supervisor_running,
+                    'relaunched_directly': False,
+                    'error': f'direct relaunch failed: {e}',
+                }
+
         return {
             'ok': True, 'action': 'restart',
             'killed_pids': killed,
-            'note': ('Isaac Sim process terminated. If running under '
-                     'run_isaac_supervised.sh, it will relaunch automatically '
-                     'with auto-play. Poll GET /state until gt_pose is non-null '
-                     'to confirm recovery (~30-60 s).'),
+            'supervisor_running': supervisor_running,
+            'relaunched_directly': relaunched_directly,
+            'note': (
+                'Supervisor will relaunch Isaac (~30-60 s). '
+                if supervisor_running else
+                'No supervisor — relaunched Isaac directly (~30-60 s). '
+            ) + 'Poll GET /state until gt_pose is non-null to confirm recovery.',
         }
 
     # ── helpers ──
