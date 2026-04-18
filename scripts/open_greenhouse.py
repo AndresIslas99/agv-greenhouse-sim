@@ -62,6 +62,17 @@ _control_q_lock = threading.Lock()
 _gt_pose_cache = None  # 7-tuple (x,y,z,qx,qy,qz,qw); writes only from Kit main thread
 _gt_pose_lock = threading.Lock()
 _node = None
+
+# Multi-tick settle — after a teleport, re-apply pose + zero velocities
+# for N consecutive post-update ticks so PhysX fully commits the new
+# state. Without this, the first 30–80 ms of contact resolution can
+# drift the chassis several cm / rotate it tens of degrees before
+# friction damps out. sim_api /reset polls GT until convergence, so a
+# chassis that drifts > 5 cm during the settle window triggers
+# RESET_TIMEOUT even though the requested pose was applied correctly.
+_SETTLE_TICKS = 12              # ~60 ms @ 200 Hz sim step
+_settle_ticks_remaining = 0
+_settle_target = None           # (x, y, z, yaw)
 _contact_sub = None
 _post_update_sub = None
 _last_collision_t = {}
@@ -223,7 +234,7 @@ def _refresh_gt_cache():
         _gt_pose_cache = pose
 
 
-def _apply_teleport_dc(x, y, z, yaw):
+def _apply_teleport_dc(x, y, z, yaw, arm_settle=True):
     """Preferred path: omni.isaac.dynamic_control. Fast and physics-correct.
 
     Zeroes linear AND angular velocity on EVERY body in the articulation
@@ -233,7 +244,14 @@ def _apply_teleport_dc(x, y, z, yaw):
     via ground friction and produce a residual ~5–10 mm/s drift after
     the teleport — visible from the brain side as `/reset` "didn't put
     me where I asked". Per-body zeroing eliminates this.
+
+    When arm_settle=True (the default), arms the multi-tick settle
+    mechanism — the next _SETTLE_TICKS post-update callbacks re-apply
+    the pose + zero velocities so PhysX commits the state across
+    several substeps before physics runs free. When called from the
+    settle loop itself, arm_settle=False to avoid re-arming.
     """
+    global _settle_ticks_remaining, _settle_target
     try:
         from omni.isaac.dynamic_control import _dynamic_control as dc
     except Exception:
@@ -281,6 +299,15 @@ def _apply_teleport_dc(x, y, z, yaw):
             dci.set_articulation_dof_velocities(art, [0.0] * dof_count)
     except Exception:
         pass
+
+    if arm_settle:
+        # Arm the multi-tick settle so the next _SETTLE_TICKS post-update
+        # callbacks re-apply this exact pose and re-zero velocities.
+        # This absorbs the PhysX contact-resolve transient (~30–80 ms
+        # after a rigid-body pose change) where tangential friction
+        # impulses otherwise drift the chassis several cm.
+        _settle_ticks_remaining = _SETTLE_TICKS
+        _settle_target = (x, y, z, yaw)
 
     return True
 
@@ -400,12 +427,27 @@ def _check_auto_unstick():
 
 
 def _drain_teleport(_event):
-    global _last_teleport_wall_t
+    global _last_teleport_wall_t, _settle_ticks_remaining
     _drain_control()
     _refresh_gt_cache()
     _check_ejection_watchdog()
     _fix_friction()
     _check_auto_unstick()
+
+    # Multi-tick settle pass — if a recent teleport armed this, re-apply
+    # the same pose and re-zero velocities for a few ticks before letting
+    # physics run free. This must happen BEFORE we pop the next queued
+    # teleport so an incoming /reset can't cancel the settle of a prior
+    # one. Running on the Kit main thread so dci calls are safe.
+    if _settle_ticks_remaining > 0 and _settle_target is not None:
+        sx, sy, sz, syaw = _settle_target
+        _apply_teleport_dc(sx, sy, sz, syaw, arm_settle=False)
+        _settle_ticks_remaining -= 1
+        # Do NOT publish reset_done again — the original teleport handler
+        # already did so. Refresh GT so the watchdog sees the settled
+        # pose on its next pass.
+        _refresh_gt_cache()
+
     if _node is None or not _teleport_q:
         return
     import time as _t
