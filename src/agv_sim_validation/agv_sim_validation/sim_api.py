@@ -247,23 +247,67 @@ class SimState(Node):
         # the next True is for THIS request, not a previous one.
         self._reset_done_event.set()
 
-    def request_reset(self, pose: ResetPose,
-                      wait_timeout_s: float = 1.0) -> dict:
-        """Publish a reset request and SYNCHRONOUSLY wait for confirmation.
+    def _latest_gt_pose_dict(self):
+        """Thread-safe snapshot of the latest GT pose as {x, y, yaw} or None."""
+        with self.lock:
+            g = self.gt_pose
+        if g is None:
+            return None
+        q = g.pose.orientation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        return {
+            'x': float(g.pose.position.x),
+            'y': float(g.pose.position.y),
+            'yaw': float(yaw),
+        }
 
-        The in-sim handler (open_greenhouse.py) consumes
-        /agv/sim/reset_request, physically teleports the robot via
-        omni.isaac.dynamic_control, and publishes /agv/sim/reset_done=True
-        on the next Kit post-update event. We block here up to
-        wait_timeout_s for that confirmation, so the caller knows the
-        teleport actually materialized before issuing further commands.
+    async def request_reset_async(
+            self,
+            pose: ResetPose,
+            xy_tol: float = 0.05,
+            yaw_tol_rad: float = math.radians(5.0),
+            handler_ack_timeout_s: float = 2.0,
+            gt_timeout_s: float = 10.0) -> dict:
+        """Publish a reset request and BLOCK (async) until GT converges.
 
-        We also disarm the motor gate and pulse e-stop so the brain doesn't
-        try to drive into the new pose with stale commands.
+        Pipeline:
+          1. Clear reset_done_event, publish /agv/sim/reset_request and
+             disarm motor + pulse e-stop (same as the old sync path).
+          2. Poll the reset_done_event until the handler acks the teleport
+             (typ. ~100 ms). Bounded by handler_ack_timeout_s.
+          3. Poll /agv/sim/ground_truth/pose until it is within xy_tol /
+             yaw_tol_rad of the request, or gt_timeout_s elapses. This
+             absorbs three distinct failure modes that were biting the
+             brain's round-34 test:
+               a. Race — reset_done fires on the same Kit tick that
+                  applies set_rigid_body_pose, but the GT topic is
+                  published by a 10 Hz ROS timer and typically lags the
+                  teleport by 100-800 ms. A caller that reads GT right
+                  after confirmed:true used to see the OLD pose.
+               b. Post-teleport bounce — with friction μ=15 the chassis
+                  can oscillate for ~1 s before settling. Polling GT
+                  waits out the bounce.
+               c. Watchdog double-teleport — if the first teleport lands
+                  the chassis in an invalid pose (interpenetrating an
+                  obstacle or up in the air), the ejection watchdog in
+                  open_greenhouse.py teleports it back to spawn. The
+                  brain would then be told "confirmed" at a pose that
+                  never was. Polling GT forces us to report the FINAL
+                  observed pose.
+
+        Returns:
+          On success  {ok, confirmed:True, requested, observed,
+                       wait_ms, gt_samples, handler_acked}
+          On timeout  {ok:False, confirmed:False, reason:"gt_convergence_timeout",
+                       requested, observed (last seen or None), wait_ms,
+                       gt_samples, handler_acked, note}
         """
-        # Clear before publish so we don't latch a previous teleport's done
-        self._reset_done_event.clear()
+        import asyncio
+        start = time.monotonic()
 
+        # (1) Publish the reset + disarm motor chain.
+        self._reset_done_event.clear()
         msg = PoseStamped()
         msg.header.frame_id = 'world'
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -278,16 +322,64 @@ class SimState(Node):
         self.motor_enable_pub.publish(Bool(data=False))
         self.estop_pub.publish(Bool(data=True))
 
-        confirmed = self._reset_done_event.wait(timeout=wait_timeout_s)
+        # (2) Wait for the handler to ack the teleport application.
+        handler_ack_deadline = start + handler_ack_timeout_s
+        while not self._reset_done_event.is_set():
+            if time.monotonic() > handler_ack_deadline:
+                break
+            await asyncio.sleep(0.02)
+        handler_acked = self._reset_done_event.is_set()
+
+        # (3) Poll GT until convergence or timeout. Re-publish the disarm
+        # signals every ~500 ms so any actor that kept emitting cmd_vel or
+        # flipping motor_enable back on after our initial pulse gets
+        # overridden. Without this, a running Nav2/behavior-tree on the
+        # brain can push the robot off the requested pose during the poll
+        # window, producing a gt_convergence_timeout we could have avoided.
+        deadline = start + gt_timeout_s
+        gt_samples = 0
+        last_observed = None
+        last_disarm_t = start
+        requested = {
+            'x': pose.x, 'y': pose.y, 'yaw': pose.yaw, 'z': pose.z,
+        }
+        while time.monotonic() < deadline:
+            if (time.monotonic() - last_disarm_t) > 0.5:
+                self.motor_enable_pub.publish(Bool(data=False))
+                self.estop_pub.publish(Bool(data=True))
+                last_disarm_t = time.monotonic()
+            gt = self._latest_gt_pose_dict()
+            if gt is not None:
+                gt_samples += 1
+                last_observed = gt
+                dxy = math.hypot(gt['x'] - pose.x, gt['y'] - pose.y)
+                dyaw = _angle_wrap(gt['yaw'] - pose.yaw)
+                if dxy < xy_tol and abs(dyaw) < yaw_tol_rad:
+                    return {
+                        'ok': True,
+                        'confirmed': True,
+                        'requested': requested,
+                        'observed': gt,
+                        'wait_ms': int((time.monotonic() - start) * 1000),
+                        'gt_samples': gt_samples,
+                        'handler_acked': handler_acked,
+                        'note': 'Teleport converged within tolerance.',
+                    }
+            await asyncio.sleep(0.05)
+
         return {
-            'ok': True,
-            'confirmed': confirmed,
-            'requested': {'x': pose.x, 'y': pose.y, 'yaw': pose.yaw, 'z': pose.z},
+            'ok': False,
+            'confirmed': False,
+            'reason': 'gt_convergence_timeout',
+            'requested': requested,
+            'observed': last_observed,
+            'wait_ms': int((time.monotonic() - start) * 1000),
+            'gt_samples': gt_samples,
+            'handler_acked': handler_acked,
             'note': (
-                'Teleport applied (handler confirmed via /agv/sim/reset_done).'
-                if confirmed else
-                f'Teleport requested but no /agv/sim/reset_done within '
-                f'{wait_timeout_s}s. Handler may be down or queue saturated.'
+                f'GT did not reach ({pose.x:.2f}, {pose.y:.2f}, '
+                f'yaw={pose.yaw:.2f}) within {gt_timeout_s:.0f} s. '
+                f'{"Handler did ack the teleport — check watchdog / obstacle."  if handler_acked else "Handler never acked — queue saturated or dead."}'
             ),
         }
 
@@ -429,6 +521,11 @@ def _yaw(x, y, z, w):
     return math.atan2(siny, cosy)
 
 
+def _angle_wrap(a):
+    """Wrap an angle in radians to [-pi, pi]."""
+    return (a + math.pi) % (2.0 * math.pi) - math.pi
+
+
 # ─── FastAPI app ──────────────────────────────────────────────────────────
 
 def make_app(state: SimState) -> FastAPI:
@@ -519,8 +616,10 @@ def make_app(state: SimState) -> FastAPI:
         return result
 
     @app.post('/reset')
-    def post_reset(pose: ResetPose):
-        return state.request_reset(pose)
+    async def post_reset(pose: ResetPose):
+        # Async so FastAPI can serve /state, /metrics, etc. in parallel
+        # while the reset is polling GT. See request_reset_async docstring.
+        return await state.request_reset_async(pose)
 
     class OnOff(BaseModel):
         on: bool
