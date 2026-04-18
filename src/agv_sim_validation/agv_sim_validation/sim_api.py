@@ -86,6 +86,16 @@ class SimState(Node):
         self._latest_jpeg_t = None    # wall time when encoded
         self._bridge = CvBridge()
 
+        # Telemetry ring buffers — brain can GET /sim/telemetry to read
+        # a live snapshot of RTF, event counters, and topic rates without
+        # parsing Isaac logs. Keeps debugging Phase 2 failures cheap.
+        self._clock_samples = deque(maxlen=60)   # (wall_t, sim_t) pairs, last ~6s
+        self._gt_pose_ts = deque(maxlen=100)     # wall timestamps of GT msgs
+        self._cloud_ts = deque(maxlen=100)       # wall timestamps of cloud msgs
+        self._watchdog_fires_total = 0
+        self._unstick_fires_total = 0
+        self._last_teleport_wall_t = 0.0         # updated when reset confirms
+
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         # Camera images come on best-effort QoS from Isaac
         cam_qos = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
@@ -103,6 +113,15 @@ class SimState(Node):
                                  self._on_episode, latched)
         self.create_subscription(Image, '/agv/zed/left/image_rect_color',
                                  self._on_image, cam_qos)
+
+        # Telemetry subs — /clock to compute RTF, cloud to compute its
+        # live rate. Both are light (rate observer only, no payload read).
+        from rosgraph_msgs.msg import Clock
+        from sensor_msgs.msg import PointCloud2
+        self.create_subscription(Clock, '/clock', self._on_clock, qos)
+        self.create_subscription(PointCloud2,
+                                 '/agv/zed/point_cloud/cloud_registered',
+                                 self._on_cloud, cam_qos)
         # /agv/sim/reset_done is latched. POST /reset uses it to confirm
         # the teleport actually applied before responding.
         self._reset_done_event = threading.Event()
@@ -134,6 +153,16 @@ class SimState(Node):
                 self.cumulative_distance += math.hypot(
                     x - self._last_xy[0], y - self._last_xy[1])
             self._last_xy = (x, y)
+            self._gt_pose_ts.append(time.time())
+
+    def _on_clock(self, msg):
+        with self.lock:
+            sim_t = msg.clock.sec + msg.clock.nanosec * 1e-9
+            self._clock_samples.append((time.time(), sim_t))
+
+    def _on_cloud(self, _msg):
+        with self.lock:
+            self._cloud_ts.append(time.time())
 
     def _on_est(self, msg: Odometry):
         with self.lock:
@@ -154,8 +183,13 @@ class SimState(Node):
             return
         with self.lock:
             self.events.append(d)
-            if d.get('event') == 'collision':
+            et = d.get('event')
+            if et == 'collision':
                 self.cumulative_collisions += 1
+            elif et == 'watchdog_recovery':
+                self._watchdog_fires_total += 1
+            elif et == 'sim_unstick':
+                self._unstick_fires_total += 1
 
     def _on_episode(self, msg: String):
         try:
@@ -203,6 +237,68 @@ class SimState(Node):
                 'cumulative_collisions': self.cumulative_collisions,
                 'episodes_completed': len(self.episodes),
                 'event_count':        len(self.events),
+            }
+
+    def telemetry(self):
+        """Snapshot of sim-internal performance counters, for postmortem.
+
+        Brain-side tests can log this before/after each waypoint so a
+        reviewer can correlate RESET_TIMEOUT or ABORTED outcomes with
+        watchdog fires, unstick nudges, or a collapsed RTF — without
+        parsing Isaac-side stderr.
+        """
+        now = time.time()
+
+        def _rate(ts_deque, window_s=5.0):
+            if len(ts_deque) < 2:
+                return 0.0
+            cutoff = now - window_s
+            recent = [t for t in ts_deque if t >= cutoff]
+            if len(recent) < 2:
+                return 0.0
+            span = recent[-1] - recent[0]
+            return (len(recent) - 1) / span if span > 0 else 0.0
+
+        def _events_in(event_name, window_s):
+            cutoff_sim = None
+            sim_now = None
+            # Prefer /clock-time since events are tagged in sim_time
+            if self._clock_samples:
+                _, sim_now = self._clock_samples[-1]
+                cutoff_sim = sim_now - window_s
+            if cutoff_sim is None:
+                return 0
+            return sum(1 for e in self.events
+                       if e.get('event') == event_name
+                       and e.get('t_sim', 0) >= cutoff_sim)
+
+        with self.lock:
+            # RTF over the full clock-sample window (~6 s).
+            rtf = 0.0
+            sim_time_s = 0.0
+            if len(self._clock_samples) >= 2:
+                wall_a, sim_a = self._clock_samples[0]
+                wall_b, sim_b = self._clock_samples[-1]
+                wall_span = wall_b - wall_a
+                sim_span = sim_b - sim_a
+                if wall_span > 0:
+                    rtf = sim_span / wall_span
+                sim_time_s = sim_b
+
+            return {
+                'rtf_6s':                   round(rtf, 3),
+                'sim_time_s':               round(sim_time_s, 2),
+                'wall_time_s':              round(now - self.session_start, 2),
+                'gt_pose_rate_hz':          round(_rate(self._gt_pose_ts, 5.0), 2),
+                'pointcloud_rate_hz':       round(_rate(self._cloud_ts, 5.0), 2),
+                'watchdog_fires_total':     self._watchdog_fires_total,
+                'watchdog_fires_last_60s':  _events_in('watchdog_recovery', 60.0),
+                'unstick_fires_total':      self._unstick_fires_total,
+                'unstick_fires_last_60s':   _events_in('sim_unstick', 60.0),
+                'last_teleport_wall_ago_s': (
+                    round(now - self._last_teleport_wall_t, 2)
+                    if self._last_teleport_wall_t > 0 else None
+                ),
             }
 
     def events_since(self, t):
@@ -329,6 +425,9 @@ class SimState(Node):
                 break
             await asyncio.sleep(0.02)
         handler_acked = self._reset_done_event.is_set()
+        if handler_acked:
+            with self.lock:
+                self._last_teleport_wall_t = time.time()
 
         # (3) Poll GT until convergence or timeout. Re-publish the disarm
         # signals every ~500 ms so any actor that kept emitting cmd_vel or
@@ -559,6 +658,10 @@ def make_app(state: SimState) -> FastAPI:
     @app.get('/metrics')
     def get_metrics():
         return state.metrics()
+
+    @app.get('/sim/telemetry')
+    def get_telemetry():
+        return state.telemetry()
 
     @app.get('/events')
     def get_events(since: float = Query(0.0)):
