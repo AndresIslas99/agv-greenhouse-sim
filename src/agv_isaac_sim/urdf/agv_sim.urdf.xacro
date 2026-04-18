@@ -57,8 +57,17 @@
     radius="$(arg wheel_radius)"
     width="$(arg wheel_width)"/>
 
-  <!-- Casters: Isaac PhysX stability only. Small passive rollers. -->
-  <xacro:caster name="front" x="0.45" y="0" radius="0.04"/>
-  <xacro:caster name="rear"  x="-0.25" y="0" radius="0.04"/>
+  <!-- Casters: Isaac PhysX stability only. Larger sphere (0.06 m radius)
+       gives more contact stability than 0.04 with the 30 kg chassis;
+       caster.xacro mass was also bumped to 1.0 kg for a sane PhysX
+       mass ratio. The caster z=-0.16 stays so the bottom drops to
+       z=-0.22 — slightly below the wheel contact line (-0.20), so the
+       chassis settles a few mm forward statically (CoM at +0.2)
+       distributing weight onto the front caster.
+       NOTE: the brain URDF has no casters. These exist only sim-side
+       for PhysX stability; the brain robot_state_publisher ignores
+       them in HIL. -->
+  <xacro:caster name="front" x="0.45" y="0" radius="0.06"/>
+  <xacro:caster name="rear"  x="-0.25" y="0" radius="0.06"/>
 
 </robot>

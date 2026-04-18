@@ -10,7 +10,7 @@ textures:
 
 physics:
   timestep_hz: 200              # 5 ms — matches real BMI088 IMU rate, baked into PhysX scene
-  solver_iterations: 12        # 4 was too low; 12 for stable contact in cluttered greenhouse
+  solver_iterations: 16        # 12 was OK for clutter; bumped to 16 to absorb the high mass-ratio caster contact (chassis 30 kg / caster 1 kg = 30:1, near PhysX safe limit). More iters = better convergence on the front-caster contact under chassis CoM offset.
   gpu_broadphase: true
   gpu_dynamics: true
   gpu_max_contacts: 524288
