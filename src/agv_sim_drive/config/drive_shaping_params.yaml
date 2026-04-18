@@ -16,5 +16,5 @@
     right_scale: 1.0
     zero_vel_epsilon: 0.03       # turns/s — below this, send exact zero
     min_effective_vel: 0.0       # turns/s — disabled (no stiction compensation)
-    max_wheel_accel: 5.0         # motor turns/s² (~0.5 m/s² chassis) — robot reaches 0.5 m/s in ~1 s
+    max_wheel_accel: 5.0         # motor turns/s² (~0.5 m/s² chassis) — robot reaches 0.5 m/s in ~1 s. Lowering this to 1.5 was tested and HURT efficiency: the wheels never reach target speed within a Nav2 short-waypoint window, so they propel the chassis less. The 94% slip at 5.0 turns out to be the LESS bad option.
     max_wheel_decel: 1.5         # turns/s² — currently unused by C++ node; kept for parity with brain config
