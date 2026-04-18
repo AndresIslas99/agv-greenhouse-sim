@@ -8,8 +8,12 @@
         <NetworkInterface name="wlp0s20f3" priority="default" multicast="false" />
       </Interfaces>
       <AllowMulticast>spdp</AllowMulticast>
-      <MaxMessageSize>65500B</MaxMessageSize>
-      <FragmentSize>32768B</FragmentSize>
+      <!-- MTU-safe sizing: WiFi MTU 1500 → max IPv4 UDP payload 1472. We
+           leave 20-byte headroom for RTPS framing. Brain coordinated this
+           so the pointcloud burst doesn't trigger IP fragmentation (which
+           was overflowing the kernel ipfrag buffer and dropping samples). -->
+      <MaxMessageSize>1452B</MaxMessageSize>
+      <FragmentSize>1344B</FragmentSize>
     </General>
 
     <Discovery>
@@ -22,10 +26,21 @@
     </Discovery>
 
     <Internal>
-      <SocketReceiveBufferSize min="26MB" />
-      <SocketSendBufferSize min="26MB" />
+      <!-- 64 MB sockets so the kernel can absorb pointcloud bursts at
+           ~32 Hz × ~11 MB/msg without dropping samples. Brain side runs
+           the same 64 MB. -->
+      <SocketReceiveBufferSize min="64MB" />
+      <SocketSendBufferSize min="64MB" />
       <Watermarks>
-        <WhcHigh>500kB</WhcHigh>
+        <!-- WhcHigh is the cap of the writer history cache (per reliable
+             writer). The pointcloud is the dominant tenant; 8 MB lets it
+             buffer ~1 sample without back-pressuring the publisher.
+             WhcAdaptive lets Cyclone scale down for low-rate writers
+             (joint_states, motor_state) so the smaller writers don't
+             reserve the full 8 MB. -->
+        <WhcHigh>8MB</WhcHigh>
+        <WhcHighInit>1MB</WhcHighInit>
+        <WhcAdaptive>true</WhcAdaptive>
       </Watermarks>
     </Internal>
 

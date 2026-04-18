@@ -75,6 +75,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'validation', default_value='false',
             description='If true, also launch the AI validation overlay (ground truth + events + foxglove).'),
+        DeclareLaunchArgument(
+            'enable_api', default_value='false',
+            description='If true (and validation:=true), also launch sim_api on :8090 (REST control + state).'),
 
         # Force the production ROS_DOMAIN_ID so sim + relays + brain share one domain.
         SetEnvironmentVariable('ROS_DOMAIN_ID', '42'),
@@ -182,6 +185,9 @@ def generate_launch_description():
                     'validation_overlay.launch.py',
                 ]),
             ),
+            launch_arguments={
+                'enable_api': LaunchConfiguration('enable_api'),
+            }.items(),
             condition=IfCondition(LaunchConfiguration('validation')),
         ),
     ])
