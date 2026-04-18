@@ -476,22 +476,22 @@ try:
 except Exception as e:
     print(f"   FAILED: {e}")
 
-print("6. Right camera — SKIPPED (brain's HIL contract only uses left; saves render cost)")
-# The ZED 2i's right sensor is not consumed by the brain:
-#   - apriltag_ros subscribes to /agv/zed/left/image_rect_color only
-#   - pointcloud_to_laserscan uses /agv/zed/point_cloud/cloud_registered from left
-#   - cuVSLAM on the real Jetson uses stereo, but in HIL we replace cuVSLAM with
-#     sim_global_odom so stereo matching never runs.
-# If you later need the right camera for real-mode parity, uncomment the block
-# below and regenerate.
-#
-# try:
-#     setup_camera("ZedRight", "zed_right_camera_frame", "zed_right_camera_frame_optical",
-#                  {"rgb": TOPICS["right_rgb"], "camera_info": TOPICS["right_camera_info"]},
-#                  enable_depth=False)
-#     print("   OK")
-# except Exception as e:
-#     print(f"   FAILED: {e}")
+print("6. Setting up right camera (RGB + camera_info — needed for cuVSLAM stereo)...")
+# The ZED 2i's right sensor IS consumed by the brain in HIL:
+#   - cuVSLAM (isaac_ros_visual_slam) on the Jetson runs against sim's stereo
+#     pair + IMU. The Jetson cannot run the ZED SDK (no hardware), so the sim
+#     must emulate both rectified outputs.
+# An earlier note here said the right camera was not needed because we
+# 'replaced cuVSLAM with sim_global_odom'. That sim-side relay was
+# REMOVED 2026-04-15 (architecture cleanup) — the brain now owns
+# /visual_slam/tracking/odometry, so it needs both camera streams again.
+try:
+    setup_camera("ZedRight", "zed_right_camera_frame", "zed_right_camera_frame_optical",
+                 {"rgb": TOPICS["right_rgb"], "camera_info": TOPICS["right_camera_info"]},
+                 enable_depth=False)
+    print("   OK")
+except Exception as e:
+    print(f"   FAILED: {e}")
 
 # Save
 stage.GetRootLayer().Save()
