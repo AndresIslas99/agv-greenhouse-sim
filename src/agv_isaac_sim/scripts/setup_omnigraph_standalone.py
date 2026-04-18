@@ -98,7 +98,11 @@ TOPICS = {
     "left_depth":        "/agv/zed/depth/depth_clean",
     "left_rgb":          "/agv/zed/left/image_rect_color",
     "left_camera_info":  "/agv/zed/left/camera_info",
-    "left_pointcloud":   "/agv/zed/point_cloud/cloud_registered",
+    # Raw cloud from Isaac OmniGraph: HD720 ≈ 11 MB/msg. The
+    # sim_pointcloud_downsample relay subsamples this and republishes on
+    # /agv/zed/point_cloud/cloud_registered (the topic the brain consumes).
+    # Without the subsample the cloud saturates the WiFi link to the Jetson.
+    "left_pointcloud":   "/agv/zed/point_cloud/cloud_raw",
     "right_rgb":         "/agv/zed/right/image_rect_color",
     "right_camera_info": "/agv/zed/right/camera_info",
 }
