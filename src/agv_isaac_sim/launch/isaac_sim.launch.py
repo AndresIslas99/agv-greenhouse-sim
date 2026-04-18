@@ -68,6 +68,14 @@ def generate_launch_description():
             output='screen',
         ),
 
+        # ─── Static TFs (STANDALONE MODE ONLY) ────────────────────────
+        # In HIL mode the brain's agv_slam.launch.py owns these — running
+        # them sim-side too produced a duplicated /tf_static publisher pair
+        # whose tiny inter-host timing skew corrupted TF lookups in
+        # pointcloud_to_laserscan (round 33 symptom: /agv/scan stayed at 0
+        # msg/s even with a healthy cloud). Gate on standalone_mode so
+        # isaac_teleop.launch.py still gets them when no brain is around.
+        #
         # base_link → imu_link (BMI088 inside ZED 2i)
         Node(
             package='tf2_ros',
@@ -76,6 +84,7 @@ def generate_launch_description():
             namespace=ns,
             arguments=['0.70', '0.0', '-0.055', '0', '0', '0', 'base_link', 'imu_link'],
             parameters=[{'use_sim_time': True}],
+            condition=IfCondition(standalone_mode),
         ),
 
         # base_link → zed_camera_link (ZED 2i body)
@@ -86,6 +95,7 @@ def generate_launch_description():
             namespace=ns,
             arguments=['0.70', '0.0', '-0.055', '0', '0', '0', 'base_link', 'zed_camera_link'],
             parameters=[{'use_sim_time': True}],
+            condition=IfCondition(standalone_mode),
         ),
 
         # zed_camera_link → zed_left_camera_frame (+Y half-baseline)
@@ -96,6 +106,7 @@ def generate_launch_description():
             namespace=ns,
             arguments=['0', '0.06', '0', '0', '0', '0', 'zed_camera_link', 'zed_left_camera_frame'],
             parameters=[{'use_sim_time': True}],
+            condition=IfCondition(standalone_mode),
         ),
 
         # zed_camera_link → zed_right_camera_frame (−Y half-baseline)
@@ -106,6 +117,7 @@ def generate_launch_description():
             namespace=ns,
             arguments=['0', '-0.06', '0', '0', '0', '0', 'zed_camera_link', 'zed_right_camera_frame'],
             parameters=[{'use_sim_time': True}],
+            condition=IfCondition(standalone_mode),
         ),
 
         # Optical frames — ROS convention: +Z forward, +X right, +Y down.
@@ -119,6 +131,7 @@ def generate_launch_description():
             arguments=['0', '0', '0', '-1.5707963', '0', '-1.5707963',
                        'zed_left_camera_frame', 'zed_left_camera_frame_optical'],
             parameters=[{'use_sim_time': True}],
+            condition=IfCondition(standalone_mode),
         ),
         Node(
             package='tf2_ros',
@@ -128,6 +141,7 @@ def generate_launch_description():
             arguments=['0', '0', '0', '-1.5707963', '0', '-1.5707963',
                        'zed_right_camera_frame', 'zed_right_camera_frame_optical'],
             parameters=[{'use_sim_time': True}],
+            condition=IfCondition(standalone_mode),
         ),
 
         # IMU bias drift relay: /agv/imu/data_clean → /agv/imu/data
