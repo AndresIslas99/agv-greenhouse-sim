@@ -49,6 +49,26 @@ def _wrap(a):
     return a
 
 
+def _quat_from_euler_xyz_deg(rx_deg, ry_deg, rz_deg):
+    """Intrinsic XYZ Euler (degrees) → quaternion (qx, qy, qz, qw).
+
+    Matches the rotation convention the USD builder uses for AprilTag
+    placements (RotateXYZ on the parent Xform).
+    """
+    rx = math.radians(rx_deg) * 0.5
+    ry = math.radians(ry_deg) * 0.5
+    rz = math.radians(rz_deg) * 0.5
+    cx, sx = math.cos(rx), math.sin(rx)
+    cy, sy = math.cos(ry), math.sin(ry)
+    cz, sz = math.cos(rz), math.sin(rz)
+    # XYZ intrinsic = Rx * Ry * Rz applied as p' = R p
+    qx = sx * cy * cz + cx * sy * sz
+    qy = cx * sy * cz - sx * cy * sz
+    qz = cx * cy * sz + sx * sy * cz
+    qw = cx * cy * cz - sx * sy * sz
+    return (qx, qy, qz, qw)
+
+
 class VisibleMarkers(Node):
     def __init__(self):
         super().__init__('visible_markers')
@@ -126,11 +146,21 @@ class VisibleMarkers(Node):
             incidence = math.acos(dot)
             if incidence > self._max_inc:
                 continue
+            # Tag world quaternion from the placement's intrinsic XYZ.
+            # The brain shim takes this + the camera world TF (computed
+            # locally on the Jetson from /tf) to derive the tag's pose
+            # in camera_optical frame for AprilTagDetectionArray.
+            tqx, tqy, tqz, tqw = _quat_from_euler_xyz_deg(trx, try_, trz)
             visible.append({
                 'id': int(tag_id),
                 'distance_m': round(dist, 3),
                 'bearing_rad': round(bearing, 4),
                 'incidence_deg': round(math.degrees(incidence), 1),
+                'tag_world_pose': {
+                    'x': round(tx, 4), 'y': round(ty, 4), 'z': round(tz, 4),
+                    'qx': round(tqx, 6), 'qy': round(tqy, 6),
+                    'qz': round(tqz, 6), 'qw': round(tqw, 6),
+                },
             })
 
         # Sort by distance for stability

@@ -111,6 +111,12 @@ class SimState(Node):
         # the natural /clock gap of that initial relaunch.
         self._sim_health_last_restart_t = time.time()
         self._sim_health_restarts_total = 0
+        # Wall time at which /clock came back from a stall (or first
+        # arrived). Reset on every clock gap > CLOCK_HEALTHY_GAP_S so
+        # `clock_healthy_streak_s` exposes "how long has clock been
+        # continuously fresh". Brain harness uses this to wait until a
+        # known-good interval has elapsed after a self-heal restart.
+        self._sim_health_clock_healthy_since = None
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         # Camera images come on best-effort QoS from Isaac
@@ -175,11 +181,23 @@ class SimState(Node):
             self._last_xy = (x, y)
             self._gt_pose_ts.append(time.time())
 
+    # Max wall gap between /clock samples that still counts as "healthy".
+    # 2 s leaves headroom over the typical 50–200 ms inter-publish gap at
+    # the lowest RTF we've seen (~5 % during heavy frame load).
+    CLOCK_HEALTHY_GAP_S = 2.0
+
     def _on_clock(self, msg):
         with self.lock:
+            now_wall = time.time()
             sim_t = msg.clock.sec + msg.clock.nanosec * 1e-9
-            self._clock_samples.append((time.time(), sim_t))
-            self._sim_health_last_clock_t = time.time()
+            gap = now_wall - self._sim_health_last_clock_t
+            self._clock_samples.append((now_wall, sim_t))
+            self._sim_health_last_clock_t = now_wall
+            # Healthy streak: reset whenever we have a gap > threshold;
+            # otherwise mark "since" the first message after a gap.
+            if (self._sim_health_clock_healthy_since is None
+                    or gap > self.CLOCK_HEALTHY_GAP_S):
+                self._sim_health_clock_healthy_since = now_wall
 
     def _on_cloud(self, _msg):
         with self.lock:
@@ -222,6 +240,9 @@ class SimState(Node):
             # Also reset the heartbeat so we don't trigger again before
             # the restart relaunches Isaac and a fresh /clock arrives.
             self._sim_health_last_clock_t = now
+            # Invalidate the healthy streak — brain knows to wait for a
+            # fresh window before resuming nav.
+            self._sim_health_clock_healthy_since = None
 
         try:
             self.sim_restart()
@@ -366,6 +387,15 @@ class SimState(Node):
                 'self_heal_restarts_total': self._sim_health_restarts_total,
                 'last_clock_msg_ago_s':
                     round(now - self._sim_health_last_clock_t, 2),
+                # Seconds /clock has been continuously fresh (max gap 2 s).
+                # Brain harness should wait until ≥ 30 s before resuming
+                # navigation after a self-heal restart, so its TF cache
+                # has settled on the new sim_time epoch.
+                'clock_healthy_streak_s': (
+                    round(now - self._sim_health_clock_healthy_since, 2)
+                    if self._sim_health_clock_healthy_since is not None
+                    else 0.0
+                ),
             }
 
     def events_since(self, t):
