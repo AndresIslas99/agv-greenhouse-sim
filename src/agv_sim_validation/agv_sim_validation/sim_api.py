@@ -221,13 +221,13 @@ class SimState(Node):
 
     def state(self):
         with self.lock:
-            return {
+            return _json_safe({
                 'session_uptime_s': round(time.time() - self.session_start, 2),
                 'gt_pose':  self._pose_dict(self.gt_pose),
                 'est_pose': self._odom_dict(self.est_pose),
                 'localization_error': self.loc_error,
                 'last_event': self.events[-1] if self.events else None,
-            }
+            })
 
     def metrics(self):
         with self.lock:
@@ -303,11 +303,11 @@ class SimState(Node):
 
     def events_since(self, t):
         with self.lock:
-            return [e for e in self.events if e.get('t_sim', 0) >= t]
+            return _json_safe([e for e in self.events if e.get('t_sim', 0) >= t])
 
     def episodes_list(self):
         with self.lock:
-            return list(self.episodes)
+            return _json_safe(list(self.episodes))
 
     def send_goal(self, goal: Goal) -> dict:
         if self.nav_client is None:
@@ -484,7 +484,17 @@ class SimState(Node):
 
     def set_motor_enable(self, on: bool) -> dict:
         self.motor_enable_pub.publish(Bool(data=on))
-        return {'ok': True, 'motor_enable': on}
+        # When arming, also clear any latent e-stop. /reset pulses
+        # e_stop=True to inhibit the motor gate during teleport, but
+        # never published e_stop=False afterward — sim_motor_gate then
+        # held e_stop_active=True permanently and silently dropped every
+        # subsequent cmd_vel. Brain reported this as wp10/wp15 stalls
+        # (cmd_vel = 0.88 m/s reaching the gate, GT not moving for 90 s).
+        # Disarming intentionally does NOT clear e-stop — that path
+        # exists to leave the chassis stopped under operator control.
+        if on:
+            self.estop_pub.publish(Bool(data=False))
+        return {'ok': True, 'motor_enable': on, 'e_stop_cleared': bool(on)}
 
     def set_estop(self, on: bool) -> dict:
         self.estop_pub.publish(Bool(data=on))
@@ -623,6 +633,25 @@ def _yaw(x, y, z, w):
 def _angle_wrap(a):
     """Wrap an angle in radians to [-pi, pi]."""
     return (a + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def _json_safe(obj):
+    """Recursively replace non-finite floats (NaN, +Inf, -Inf) with None.
+
+    Pydantic / FastAPI's default JSON encoder rejects these per the JSON
+    spec ("Out of range float values are not JSON compliant" → HTTP 500).
+    The brain's est_pose / localization_error can occasionally carry NaN
+    when the EKF has just initialized or after a reset before the brain
+    odometry catches up — that's a transient, not a fault. Sanitize on
+    the way out so /state stays a reliable liveness check.
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
 
 
 # ─── FastAPI app ──────────────────────────────────────────────────────────
