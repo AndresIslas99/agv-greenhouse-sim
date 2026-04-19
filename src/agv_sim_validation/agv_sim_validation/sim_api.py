@@ -544,6 +544,30 @@ class SimState(Node):
                 except Exception:
                     pass
 
+        # Escalate to SIGKILL if Isaac doesn't exit within 3 s. PhysX or
+        # the Kit timeline can hang in a state where SIGTERM is dropped
+        # (observed: handler rclpy spin thread crashes with
+        # ExternalShutdownException, timeline freezes, sim_time stops
+        # advancing, but the process refuses to die). Force-kill is the
+        # only reliable way out — supervisor will then auto-relaunch.
+        if killed:
+            import time as _t
+            for _ in range(30):  # up to 3 s
+                still = subprocess.run(
+                    ['pgrep', '-f', 'bin/isaacsim.*open_greenhouse'],
+                    capture_output=True, text=True)
+                still_pids = {int(p) for p in still.stdout.split() if p}
+                if not (still_pids & set(killed)):
+                    break
+                _t.sleep(0.1)
+            else:
+                # Loop exited without break → still alive; SIGKILL each.
+                for pid in killed:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except Exception:
+                        pass
+
         # Case (b) and (c): if no supervisor, we're responsible for relaunch
         relaunched_directly = False
         if not supervisor_running:
