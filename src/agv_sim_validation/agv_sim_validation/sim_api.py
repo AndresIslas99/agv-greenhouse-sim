@@ -97,6 +97,21 @@ class SimState(Node):
         self._unstick_fires_total = 0
         self._last_teleport_wall_t = 0.0         # updated when reset confirms
 
+        # Sim self-healing watchdog. Isaac occasionally enters a "ghost"
+        # state — process alive, /clock topic has a publisher endpoint,
+        # but no actual messages flow because PhysX or Kit timeline is
+        # hung. The user shouldn't have to notice and intervene; if no
+        # /clock has arrived for SIM_HEALTH_TIMEOUT_S, we POST /sim/restart
+        # ourselves. SIM_HEALTH_GRACE_S protects the cold-start window
+        # and the ~30 s relaunch window from triggering recursive restarts.
+        self._sim_health_last_clock_t = time.time()
+        # Seed last_restart_t to "now" so the GRACE_S window protects
+        # the cold-start period — sim_api commonly comes up while Isaac
+        # is mid-relaunch, and we don't want the watchdog to fire on
+        # the natural /clock gap of that initial relaunch.
+        self._sim_health_last_restart_t = time.time()
+        self._sim_health_restarts_total = 0
+
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         # Camera images come on best-effort QoS from Isaac
         cam_qos = QoSProfile(depth=2, reliability=ReliabilityPolicy.BEST_EFFORT)
@@ -142,6 +157,10 @@ class SimState(Node):
         else:
             self.nav_client = None
 
+        # Watchdog tick @ 2 Hz — checks /clock heartbeat and self-restarts
+        # Isaac if it's been silent too long. Cheap (one wall_time read).
+        self.create_timer(0.5, self._sim_health_tick)
+
         self.get_logger().info('sim_api state aggregator up')
 
     # ── topic callbacks ──
@@ -160,10 +179,54 @@ class SimState(Node):
         with self.lock:
             sim_t = msg.clock.sec + msg.clock.nanosec * 1e-9
             self._clock_samples.append((time.time(), sim_t))
+            self._sim_health_last_clock_t = time.time()
 
     def _on_cloud(self, _msg):
         with self.lock:
             self._cloud_ts.append(time.time())
+
+    # Sim health watchdog tunables. Triggered if /clock has been silent
+    # for SIM_HEALTH_TIMEOUT_S, with at least SIM_HEALTH_GRACE_S between
+    # restarts to absorb the cold-start window.
+    SIM_HEALTH_TIMEOUT_S = 10.0
+    SIM_HEALTH_GRACE_S   = 60.0
+
+    def _sim_health_tick(self):
+        """Self-heal Isaac when /clock stops flowing.
+
+        Isaac sometimes ends up in a "ghost" state — process alive,
+        publishers registered, no messages emitted. Root cause varies
+        (PhysX hang, Cyclone DDS context corruption after many sim_api
+        cycles, Kit timeline frozen). The user shouldn't have to notice
+        and intervene; if /clock has been silent SIM_HEALTH_TIMEOUT_S,
+        we POST /sim/restart on its behalf.
+        """
+        now = time.time()
+        with self.lock:
+            silent_for = now - self._sim_health_last_clock_t
+            since_restart = now - self._sim_health_last_restart_t
+
+        if silent_for < self.SIM_HEALTH_TIMEOUT_S:
+            return
+        if since_restart < self.SIM_HEALTH_GRACE_S:
+            # In the cold-start window or right after a previous self-
+            # heal — clock not back yet, don't loop.
+            return
+
+        self.get_logger().warn(
+            f'/clock silent for {silent_for:.1f}s — auto-restarting Isaac '
+            f'(restart #{self._sim_health_restarts_total + 1})')
+        with self.lock:
+            self._sim_health_last_restart_t = now
+            self._sim_health_restarts_total += 1
+            # Also reset the heartbeat so we don't trigger again before
+            # the restart relaunches Isaac and a fresh /clock arrives.
+            self._sim_health_last_clock_t = now
+
+        try:
+            self.sim_restart()
+        except Exception as e:
+            self.get_logger().error(f'self-heal sim_restart failed: {e}')
 
     def _on_est(self, msg: Odometry):
         with self.lock:
@@ -300,6 +363,9 @@ class SimState(Node):
                     round(now - self._last_teleport_wall_t, 2)
                     if self._last_teleport_wall_t > 0 else None
                 ),
+                'self_heal_restarts_total': self._sim_health_restarts_total,
+                'last_clock_msg_ago_s':
+                    round(now - self._sim_health_last_clock_t, 2),
             }
 
     def events_since(self, t):
