@@ -76,7 +76,15 @@ class VisibleMarkers(Node):
         self.declare_parameter('rate_hz', 5.0)
         self.declare_parameter('max_distance_m', 5.0)
         self.declare_parameter('hfov_deg', 110.0)
+        self.declare_parameter('vfov_deg', 70.0)         # ZED 2i HD720
         self.declare_parameter('max_incidence_deg', 80.0)
+        # Floor tags use a relaxed incidence — a forward-mounted camera
+        # always sees them obliquely (camera at z=0.145, floor at z=0).
+        # 88° lets the rail-entry floor tags stay visible up to ~2 m
+        # while still rejecting tags so far away the angle is essentially
+        # edge-on. Tune separately if real apriltag_ros has a stricter
+        # detection envelope.
+        self.declare_parameter('max_incidence_floor_deg', 88.0)
         # Camera position relative to base_link (matches URDF ZED mount)
         self.declare_parameter('cam_offset_x', 0.70)
         self.declare_parameter('cam_offset_y', 0.0)
@@ -84,7 +92,10 @@ class VisibleMarkers(Node):
 
         self._max_d = float(self.get_parameter('max_distance_m').value)
         self._hfov_half = math.radians(float(self.get_parameter('hfov_deg').value)) * 0.5
+        self._vfov_half = math.radians(float(self.get_parameter('vfov_deg').value)) * 0.5
         self._max_inc = math.radians(float(self.get_parameter('max_incidence_deg').value))
+        self._max_inc_floor = math.radians(
+            float(self.get_parameter('max_incidence_floor_deg').value))
         self._cam_dx = float(self.get_parameter('cam_offset_x').value)
         self._cam_dy = float(self.get_parameter('cam_offset_y').value)
         self._cam_dz = float(self.get_parameter('cam_offset_z').value)
@@ -121,31 +132,53 @@ class VisibleMarkers(Node):
 
         visible = []
         for (tag_id, tx, ty, tz, trx, try_, trz) in APRILTAG_PLACEMENTS:
-            if is_floor_tag(trx, try_, trz):
-                # Floor/ceiling tags aren't in the front camera frustum
-                continue
             dx = tx - cam_x
             dy = ty - cam_y
             dz = tz - cam_z
             dist = math.sqrt(dx * dx + dy * dy + dz * dz)
             if dist > self._max_d or dist < 1e-3:
                 continue
-            # Bearing from camera optical axis (robot +X after yaw)
+
+            # Horizontal bearing from camera optical axis (robot +X after yaw).
+            # Use only the XY projection; vertical handled separately.
+            xy_dist = math.sqrt(dx * dx + dy * dy)
+            if xy_dist < 1e-6:
+                continue  # tag directly under/over camera — degenerate
             bearing = _wrap(math.atan2(dy, dx) - yaw)
             if abs(bearing) > self._hfov_half:
                 continue
-            # Tag's outward normal in XY plane (unit vector)
-            nx, ny = tag_normal_xy(trx, try_, trz)
-            if nx == 0.0 and ny == 0.0:
+
+            # Vertical (pitch) angle from optical axis. Negative = above
+            # camera, positive = below. ZED's optical axis is horizontal
+            # so the FoV is symmetric around 0.
+            pitch = math.atan2(-dz, xy_dist)  # -dz: tag below camera => +pitch
+            if abs(pitch) > self._vfov_half:
                 continue
-            # Vector from tag to camera (must align with tag normal)
-            inv = 1.0 / dist
-            vx = -dx * inv
-            vy = -dy * inv
-            dot = max(-1.0, min(1.0, nx * vx + ny * vy))
-            incidence = math.acos(dot)
-            if incidence > self._max_inc:
-                continue
+
+            floor = is_floor_tag(trx, try_, trz)
+            if floor:
+                # Floor tag normal = +Z. Vector from tag UP to camera =
+                # (cam_z - tz)/dist along +Z. Incidence is the angle
+                # between this vector and tag's +Z normal.
+                vz_to_cam = (cam_z - tz) / dist
+                if vz_to_cam <= 0:
+                    continue   # camera below floor, can't see tag
+                incidence = math.acos(max(-1.0, min(1.0, vz_to_cam)))
+                if incidence > self._max_inc_floor:
+                    continue
+            else:
+                # Wall tag normal in XY plane.
+                nx, ny = tag_normal_xy(trx, try_, trz)
+                if nx == 0.0 and ny == 0.0:
+                    continue
+                # Vector from tag to camera (must align with tag normal)
+                inv = 1.0 / dist
+                vx = -dx * inv
+                vy = -dy * inv
+                dot = max(-1.0, min(1.0, nx * vx + ny * vy))
+                incidence = math.acos(dot)
+                if incidence > self._max_inc:
+                    continue
             # Tag world quaternion from the placement's intrinsic XYZ.
             # The brain shim takes this + the camera world TF (computed
             # locally on the Jetson from /tf) to derive the tag's pose
