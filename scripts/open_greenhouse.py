@@ -128,8 +128,16 @@ if ROS_OK:
             # brain has EVER published a non-zero cmd_vel, even while the
             # motor is disarmed (e.g. during /reset). That was silently
             # translating the robot 5 cm every 5 s.
+            #
+            # Use VOLATILE QoS (the default `qos` profile) instead of the
+            # latched one — sim_api and the brain's teleop_server both
+            # publish motor_enable as VOLATILE, so a TRANSIENT_LOCAL sub
+            # is incompatible (Cyclone DDS warning: "incompatible policy:
+            # DURABILITY") and never receives any message. Without
+            # receiving motor_enable=True the unstick stays gated off
+            # forever — independent bug from the original silent-nudge.
             self.create_subscription(
-                Bool, '/agv/motor_enable', self._on_motor_enable, latched)
+                Bool, '/agv/motor_enable', self._on_motor_enable, qos)
             self.events_pub = self.create_publisher(
                 String, '/agv/sim/events', 50)
             self.reset_done_pub = self.create_publisher(
