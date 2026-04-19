@@ -339,7 +339,7 @@ def _apply_teleport_usd(x, y, z, yaw):
 
 
 def _drain_control():
-    """Execute timeline commands (play/stop/pause) queued from ROS."""
+    """Execute timeline + RTF commands queued from ROS."""
     if not _control_q:
         return
     try:
@@ -361,6 +361,30 @@ def _drain_control():
         elif cmd == 'pause':
             tl.pause()
             print('[AGV][handler] timeline → PAUSE')
+        elif cmd.startswith('rtf:'):
+            # Brain-driven RTF cap. target<=0 disables the rate limit
+            # (sim runs as fast as HW allows). target>0 caps the Kit
+            # main-loop frequency to round(target × 200 Hz) — physics
+            # runs at 200 Hz in this build, so 1.0 ≈ realtime,
+            # 0.5 ≈ half realtime, etc. Capping ABOVE the natural RTF
+            # has no acceleration effect; only deceleration is enforced.
+            try:
+                target = float(cmd.split(':', 1)[1])
+            except Exception:
+                print(f'[AGV][handler] bad rtf command: {cmd}', file=sys.stderr)
+                continue
+            try:
+                settings = carb.settings.get_settings()
+                if target <= 0:
+                    settings.set_bool('/app/runLoops/main/rateLimitEnabled', False)
+                    print('[AGV][handler] RTF cap → unlimited')
+                else:
+                    freq = max(1, int(round(target * 200)))
+                    settings.set_bool('/app/runLoops/main/rateLimitEnabled', True)
+                    settings.set_int('/app/runLoops/main/rateLimitFrequency', freq)
+                    print(f'[AGV][handler] RTF cap → {target:.2f}× ({freq} Hz)')
+            except Exception as e:
+                print(f'[AGV][handler] rtf set failed: {e}', file=sys.stderr)
         else:
             print(f'[AGV][handler] unknown control command: {cmd}',
                   file=sys.stderr)

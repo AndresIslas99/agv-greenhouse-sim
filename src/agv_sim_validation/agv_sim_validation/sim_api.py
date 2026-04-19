@@ -117,6 +117,15 @@ class SimState(Node):
         # continuously fresh". Brain harness uses this to wait until a
         # known-good interval has elapsed after a self-heal restart.
         self._sim_health_clock_healthy_since = None
+        # Operator pause flag — when True, the self-heal watchdog is
+        # silenced (otherwise a /sim/clock_pause >10s would falsely
+        # trigger an Isaac restart). Set by /sim/clock_pause, cleared
+        # by /sim/clock_resume. Exposed via /sim/telemetry.paused.
+        self._sim_paused = False
+        # Last /sim/set_rtf target value the brain requested. None means
+        # rate limit is disabled (sim runs as fast as HW allows). Exposed
+        # via /sim/telemetry.rtf_target.
+        self._rtf_target = None
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         # Camera images come on best-effort QoS from Isaac
@@ -139,11 +148,20 @@ class SimState(Node):
         # Telemetry subs — /clock to compute RTF, cloud to compute its
         # live rate. Both are light (rate observer only, no payload read).
         from rosgraph_msgs.msg import Clock
-        from sensor_msgs.msg import PointCloud2
+        from sensor_msgs.msg import PointCloud2, JointState
         self.create_subscription(Clock, '/clock', self._on_clock, qos)
         self.create_subscription(PointCloud2,
                                  '/agv/zed/point_cloud/cloud_registered',
                                  self._on_cloud, cam_qos)
+        # Motor state + joint encoders — needed by /motor/prepare and the
+        # enhanced /reset response so the brain harness can confirm the
+        # sim is actually "ready to drive" before issuing a goal.
+        self.motor_state = None     # parsed JSON dict from sim_motor_gate
+        self.joint_state = None     # latest JointState from /agv/joint_states
+        self.create_subscription(String, '/agv/motor_state',
+                                 self._on_motor_state, qos)
+        self.create_subscription(JointState, '/agv/joint_states',
+                                 self._on_joint_state, qos)
         # /agv/sim/reset_done is latched. POST /reset uses it to confirm
         # the teleport actually applied before responding.
         self._reset_done_event = threading.Event()
@@ -203,6 +221,24 @@ class SimState(Node):
         with self.lock:
             self._cloud_ts.append(time.time())
 
+    def _on_motor_state(self, msg: String):
+        """Parse sim_motor_gate JSON status. Expected fields include
+        'armed' (bool), 'e_stop' (bool), plus diagnostics we don't
+        need. Parse failures fall back to None so the enhanced /reset
+        response can report motors_disarmed=null if the topic's dead."""
+        try:
+            d = json.loads(msg.data)
+        except Exception:
+            return
+        with self.lock:
+            self.motor_state = d
+
+    def _on_joint_state(self, msg):
+        """Latest wheel + caster joint velocities. Used to derive
+        encoders_reset after a teleport."""
+        with self.lock:
+            self.joint_state = msg
+
     # Sim health watchdog tunables. Triggered if /clock has been silent
     # for SIM_HEALTH_TIMEOUT_S, with at least SIM_HEALTH_GRACE_S between
     # restarts to absorb the cold-start window.
@@ -221,6 +257,13 @@ class SimState(Node):
         """
         now = time.time()
         with self.lock:
+            if self._sim_paused:
+                # Operator paused the sim deliberately via /sim/clock_pause;
+                # /clock will be silent until /sim/clock_resume. Keep the
+                # heartbeat fresh so we don't trigger a false self-heal
+                # the moment the operator un-pauses.
+                self._sim_health_last_clock_t = now
+                return
             silent_for = now - self._sim_health_last_clock_t
             since_restart = now - self._sim_health_last_restart_t
 
@@ -396,6 +439,8 @@ class SimState(Node):
                     if self._sim_health_clock_healthy_since is not None
                     else 0.0
                 ),
+                'paused': bool(self._sim_paused),
+                'rtf_target': self._rtf_target,   # None = unlimited
             }
 
     def events_since(self, t):
@@ -554,11 +599,16 @@ class SimState(Node):
                     return {
                         'ok': True,
                         'confirmed': True,
+                        'pose_converged': True,
                         'requested': requested,
                         'observed': gt,
                         'wait_ms': int((time.monotonic() - start) * 1000),
                         'gt_samples': gt_samples,
                         'handler_acked': handler_acked,
+                        'velocities_zeroed': True,  # _apply_teleport_dc set+zero on every body
+                        'motors_disarmed': self._check_motors_disarmed(),
+                        'encoders_reset': self._check_encoders_reset(),
+                        'timestamp_sim': self._current_sim_time(),
                         'note': 'Teleport converged within tolerance.',
                     }
             await asyncio.sleep(0.05)
@@ -566,17 +616,93 @@ class SimState(Node):
         return {
             'ok': False,
             'confirmed': False,
+            'pose_converged': False,
             'reason': 'gt_convergence_timeout',
             'requested': requested,
             'observed': last_observed,
             'wait_ms': int((time.monotonic() - start) * 1000),
             'gt_samples': gt_samples,
             'handler_acked': handler_acked,
+            'velocities_zeroed': bool(handler_acked),  # handler ack means dc call ran
+            'motors_disarmed': self._check_motors_disarmed(),
+            'encoders_reset': self._check_encoders_reset(),
+            'timestamp_sim': self._current_sim_time(),
             'note': (
                 f'GT did not reach ({pose.x:.2f}, {pose.y:.2f}, '
                 f'yaw={pose.yaw:.2f}) within {gt_timeout_s:.0f} s. '
                 f'{"Handler did ack the teleport — check watchdog / obstacle."  if handler_acked else "Handler never acked — queue saturated or dead."}'
             ),
+        }
+
+    # ── Reset-response helpers (used by request_reset_async) ──
+
+    def _check_motors_disarmed(self):
+        """True iff sim_motor_gate latest /agv/motor_state reports armed=False.
+        None when the topic hasn't been observed yet."""
+        with self.lock:
+            ms = self.motor_state
+        if ms is None:
+            return None
+        # sim_motor_gate publishes 'armed' as bool. Anything else falls
+        # back to None so the brain can tell "unknown" vs "still armed".
+        if 'armed' not in ms:
+            return None
+        return not bool(ms['armed'])
+
+    def _check_encoders_reset(self, tol_rad_s=0.1):
+        """True iff each wheel/caster joint reports |v| < tol_rad_s in
+        the latest JointState. None if no JointState seen yet.
+
+        tol_rad_s=0.1 (~5.7°/s, ~8 mm/s wheel surface) tolerates the
+        small residual jitter PhysX shows for ~50ms after a teleport
+        even though _apply_teleport_dc set DOF velocities to zero."""
+        with self.lock:
+            js = self.joint_state
+        if js is None or not js.velocity:
+            return None
+        return all(abs(v) < tol_rad_s for v in js.velocity)
+
+    def _current_sim_time(self):
+        """Latest sim_time_s from /clock samples, or None if no clock yet."""
+        with self.lock:
+            if self._clock_samples:
+                return round(self._clock_samples[-1][1], 3)
+        return None
+
+    # ── Atomic motor prepare ──
+
+    async def motor_prepare(self, wait_armed_s: float = 2.0) -> dict:
+        """Atomic: clear e_stop, arm motor gate, wait for /agv/motor_state
+        to confirm armed=true. Replaces the brain's 2-call sequence
+        (POST /e_stop + POST /motor/enable) so there's no race window
+        where cmd_vel arrives between the two commands and gets dropped.
+        Idempotent — safe to call multiple times."""
+        import asyncio
+        start = time.monotonic()
+        self.estop_pub.publish(Bool(data=False))
+        self.motor_enable_pub.publish(Bool(data=True))
+        deadline = start + wait_armed_s
+        while time.monotonic() < deadline:
+            with self.lock:
+                ms = self.motor_state
+            if ms is not None and ms.get('armed') is True:
+                return {
+                    'ok': True,
+                    'armed': True,
+                    'e_stop': bool(ms.get('e_stop', False)),
+                    'wait_ms': int((time.monotonic() - start) * 1000),
+                }
+            await asyncio.sleep(0.02)
+        with self.lock:
+            ms = self.motor_state
+        return {
+            'ok': False,
+            'reason': 'arm_timeout',
+            'armed': bool(ms.get('armed', False)) if ms else False,
+            'e_stop': bool(ms.get('e_stop', True)) if ms else None,
+            'wait_ms': int((time.monotonic() - start) * 1000),
+            'note': (f'Motor gate did not report armed=true within '
+                     f'{wait_armed_s:.1f}s. Check /agv/motor_state liveness.'),
         }
 
     def set_motor_enable(self, on: bool) -> dict:
@@ -602,6 +728,58 @@ class SimState(Node):
         return {'ok': True, 'action': action,
                 'note': f'{action} command sent to /agv/sim/control. '
                         'Executed by the in-sim handler on the next Kit frame.'}
+
+    def sim_clock_pause(self) -> dict:
+        """Freeze sim time at the current sample. /clock stops publishing
+        until resume; the self-heal watchdog ignores the silence while
+        _sim_paused=True."""
+        with self.lock:
+            self._sim_paused = True
+        result = self.sim_control('pause')
+        result['paused'] = True
+        return result
+
+    def sim_clock_resume(self) -> dict:
+        """Resume sim time from where it was paused. Clears the watchdog
+        gate; the next /clock arrival re-arms the heartbeat."""
+        with self.lock:
+            self._sim_paused = False
+            # Reset the heartbeat to "now" so the watchdog has a fresh
+            # window to wait for the first post-resume /clock message.
+            self._sim_health_last_clock_t = time.time()
+        result = self.sim_control('play')
+        result['paused'] = False
+        return result
+
+    def sim_set_rtf(self, target_rtf: float) -> dict:
+        """Cap the Kit main loop to ~target_rtf×realtime via carb settings.
+
+        target_rtf <= 0  → unlimited (default sim behaviour)
+        target_rtf == 1  → realtime
+        target_rtf  > 0  → cap rateLimitFreq to round(target * 200 Hz)
+
+        target_rtf > the natural RTF the HW can sustain (~0.33 on this
+        host) has no acceleration effect — only deceleration is enforced.
+        Reports `effective` based on whether the requested cap is below
+        the recently-observed rtf_6s; brain can verify post-hoc via
+        /sim/telemetry.rtf_6s.
+        """
+        target = max(0.0, min(2.0, float(target_rtf)))
+        with self.lock:
+            self._rtf_target = None if target <= 0.0 else target
+            recent_rtf = (
+                (self._clock_samples[-1][1] - self._clock_samples[0][1]) /
+                max(1e-6, self._clock_samples[-1][0] - self._clock_samples[0][0])
+                if len(self._clock_samples) >= 2 else None
+            )
+        result = self.sim_control(f'rtf:{target}')
+        result['target_rtf'] = target
+        result['recent_rtf'] = round(recent_rtf, 3) if recent_rtf else None
+        result['effective_cap'] = (
+            None if target <= 0 or recent_rtf is None
+            else target < recent_rtf
+        )
+        return result
 
     def sim_restart(self) -> dict:
         """Self-healing restart of Isaac Sim.
@@ -881,6 +1059,12 @@ def make_app(state: SimState) -> FastAPI:
     def post_motor_enable(payload: OnOff):
         return state.set_motor_enable(payload.on)
 
+    @app.post('/motor/prepare')
+    async def post_motor_prepare():
+        # Atomic clear-estop + arm + verify-armed. Async so /state and
+        # /sim/telemetry stay responsive while the verify poll runs.
+        return await state.motor_prepare()
+
     @app.post('/e_stop')
     def post_estop(payload: OnOff):
         return state.set_estop(payload.on)
@@ -896,6 +1080,21 @@ def make_app(state: SimState) -> FastAPI:
     @app.post('/sim/restart')
     def sim_restart():
         return state.sim_restart()
+
+    @app.post('/sim/clock_pause')
+    def sim_clock_pause():
+        return state.sim_clock_pause()
+
+    @app.post('/sim/clock_resume')
+    def sim_clock_resume():
+        return state.sim_clock_resume()
+
+    class SetRTF(BaseModel):
+        target_rtf: float = 1.0   # 0 = unlimited, 1.0 = realtime
+
+    @app.post('/sim/set_rtf')
+    def sim_set_rtf(payload: SetRTF):
+        return state.sim_set_rtf(payload.target_rtf)
 
     return app
 
