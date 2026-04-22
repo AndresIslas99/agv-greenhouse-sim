@@ -62,18 +62,18 @@ PLACEMENTS = [
     (25, -16.88, 4.4,  0.145, 0, 0,    0, 'PARED', 'Pared OESTE — Pasillo 5', 'West wall aisle 5, facing +X'),
 
     # ── Floor — entrada DELANTERA (front), pegado al inicio del pasillo ──
-    (2,    7.0, -4.4,  0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 1', 'Front floor entry aisle 1'),
-    (3,    7.0, -2.2,  0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 2', 'Front floor entry aisle 2'),
-    (4,    7.0, 0.0,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 3', 'Front floor entry aisle 3'),
-    (12,   7.0, 2.2,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 4', 'Front floor entry aisle 4'),
-    (13,   7.0, 4.4,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 5', 'Front floor entry aisle 5'),
+    (2,   7.33, -4.4,  0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 1', 'Front floor entry aisle 1'),
+    (3,   7.33, -2.2,  0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 2', 'Front floor entry aisle 2'),
+    (4,   7.33, 0.0,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 3', 'Front floor entry aisle 3'),
+    (12,  7.33, 2.2,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 4', 'Front floor entry aisle 4'),
+    (13,  7.33, 4.4,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada delantera — Pasillo 5', 'Front floor entry aisle 5'),
 
     # ── Floor — entrada TRASERA (rear), del otro lado del gap ──
-    (33,   4.0, -4.4,  0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 1', 'Rear floor entry aisle 1'),
-    (34,   4.0, -2.2,  0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 2', 'Rear floor entry aisle 2'),
-    (35,   4.0, 0.0,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 3', 'Rear floor entry aisle 3'),
-    (36,   4.0, 2.2,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 4', 'Rear floor entry aisle 4'),
-    (37,   4.0, 4.4,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 5', 'Rear floor entry aisle 5'),
+    (33,  3.67, -4.4,  0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 1', 'Rear floor entry aisle 1'),
+    (34,  3.67, -2.2,  0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 2', 'Rear floor entry aisle 2'),
+    (35,  3.67, 0.0,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 3', 'Rear floor entry aisle 3'),
+    (36,  3.67, 2.2,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 4', 'Rear floor entry aisle 4'),
+    (37,  3.67, 4.4,   0.002, 0, -90,  0, 'SUELO', 'Suelo entrada trasera — Pasillo 5', 'Rear floor entry aisle 5'),
 
     # ── Wall — frente de cada arbusto, sección DELANTERA ──
     (6,    7.4, -5.5,  0.145, 0, 0,  180, 'PARED', 'Frente delantero — Arbusto 1', 'Front row 1 start, facing −X'),

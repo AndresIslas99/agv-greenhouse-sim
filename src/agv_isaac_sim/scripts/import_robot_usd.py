@@ -59,9 +59,10 @@ IMU_RATE = 200               # Hz (BMI088 in ZED 2i)
 CAMERA_MOUNT_XYZ = (0.70, 0.0, -0.055)
 CAMERA_STEREO_BASELINE = 0.12
 
-# Camera parameters (ZED 2i specs)
-CAMERA_WIDTH = 1280
-CAMERA_HEIGHT = 720
+# Camera parameters — match the ZED real pub_resolution=NATIVE in
+# src/agv_slam/config/zed2i_override.yaml on the brain side.
+CAMERA_WIDTH = 672
+CAMERA_HEIGHT = 376
 CAMERA_HFOV = 110.0  # degrees (1.9199 rad)
 
 # IMU noise — BMI088 datasheet typical
