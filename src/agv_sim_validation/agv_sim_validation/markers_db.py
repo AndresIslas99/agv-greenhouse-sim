@@ -35,18 +35,22 @@ APRILTAG_PLACEMENTS = [
     (23, -16.88, 0.0, 0.145, 0, 0, 0),
     (24, -16.88, 2.2, 0.145, 0, 0, 0),
     (25, -16.88, 4.4, 0.145, 0, 0, 0),
-    # Front floor aisles (horizontal, face UP +Z)
-    (2, 7.0, -4.4, 0.002, 0, -90, 0),
-    (3, 7.0, -2.2, 0.002, 0, -90, 0),
-    (4, 7.0, 0.0, 0.002, 0, -90, 0),
-    (12, 7.0, 2.2, 0.002, 0, -90, 0),
-    (13, 7.0, 4.4, 0.002, 0, -90, 0),
-    # Rear floor aisles (horizontal, face UP +Z)
-    (33, 4.0, -4.4, 0.002, 0, -90, 0),
-    (34, 4.0, -2.2, 0.002, 0, -90, 0),
-    (35, 4.0, 0.0, 0.002, 0, -90, 0),
-    (36, 4.0, 2.2, 0.002, 0, -90, 0),
-    (37, 4.0, 4.4, 0.002, 0, -90, 0),
+    # Front floor aisles (horizontal, face UP +Z) — 17 cm hacia el gap
+    # del tip front (rail tip x=7.5). Pre-2026-04: x=7.0 (50 cm). Real
+    # Opalina post-visit measurement: 17 cm from rail tip into the open
+    # zone between the two rail sections.
+    (2,  7.33, -4.4, 0.002, 0, -90, 0),
+    (3,  7.33, -2.2, 0.002, 0, -90, 0),
+    (4,  7.33,  0.0, 0.002, 0, -90, 0),
+    (12, 7.33,  2.2, 0.002, 0, -90, 0),
+    (13, 7.33,  4.4, 0.002, 0, -90, 0),
+    # Rear floor aisles (horizontal, face UP +Z) — 17 cm hacia el gap
+    # del tip rear (rail tip x=3.5). Pre-2026-04: x=4.0 (50 cm).
+    (33, 3.67, -4.4, 0.002, 0, -90, 0),
+    (34, 3.67, -2.2, 0.002, 0, -90, 0),
+    (35, 3.67,  0.0, 0.002, 0, -90, 0),
+    (36, 3.67,  2.2, 0.002, 0, -90, 0),
+    (37, 3.67,  4.4, 0.002, 0, -90, 0),
     # Front row starts (vertical, facing -X toward approaching robot)
     (6, 7.4, -5.5, 0.145, 0, 0, 180),
     (7, 7.4, -3.3, 0.145, 0, 0, 180),

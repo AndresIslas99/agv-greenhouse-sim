@@ -80,8 +80,12 @@ from pxr import Usd, UsdGeom, Sdf, Gf
 # Robot parameters — calibrated 2026-04-08 (agv_odrive/config/odrive_params.yaml)
 WHEEL_RADIUS = 0.0781
 WHEEL_SEPARATION = 0.960
-CAMERA_WIDTH = 1280
-CAMERA_HEIGHT = 720
+# Match the ZED real config (src/agv_slam/config/zed2i_override.yaml on
+# the brain side: pub_resolution=NATIVE → 672×376 stereo native). HD720
+# overshot the detector by ~1.9× pixels per axis, masking the pixel-count
+# failures the brain saw in the real Opalina pipeline.
+CAMERA_WIDTH = 672
+CAMERA_HEIGHT = 376
 ROBOT_PATH = "/agv"
 ARTICULATION_PATH = "/agv/base_link"  # ArticulationRootAPI is on base_link, not /agv
 
