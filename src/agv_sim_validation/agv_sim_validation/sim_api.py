@@ -862,10 +862,13 @@ class SimState(Node):
                 # Use Popen with start_new_session so it survives the
                 # FastAPI worker exit. stdout to a known log file.
                 log_path = '/tmp/isaac_supervised.log'
+                # Repo root: AGV_SIM_DIR env override, else ~/agv-sim.
+                agv_sim_dir = os.environ.get(
+                    'AGV_SIM_DIR', os.path.expanduser('~/agv-sim'))
                 with open(log_path, 'ab') as logf:
                     subprocess.Popen(
-                        ['/home/andres/agv-sim/run_isaac_sim.sh'],
-                        cwd='/home/andres/agv-sim',
+                        [os.path.join(agv_sim_dir, 'run_isaac_sim.sh')],
+                        cwd=agv_sim_dir,
                         env=env,
                         stdin=subprocess.DEVNULL,
                         stdout=logf, stderr=logf,

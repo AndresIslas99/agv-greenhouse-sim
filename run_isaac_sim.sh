@@ -7,7 +7,10 @@
 # Usage:  ./run_isaac_sim.sh
 # Then press Play ▶ when the greenhouse loads.
 
-OPEN_SCRIPT="/home/andres/agv-sim/scripts/open_greenhouse.py"
+# Resolve paths relative to this script so the repo works from any checkout
+# location (override the root with AGV_SIM_DIR if you run it from elsewhere).
+AGV_SIM_DIR="${AGV_SIM_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+OPEN_SCRIPT="$AGV_SIM_DIR/scripts/open_greenhouse.py"
 
 # ROS 2 domain must match the brain's production config (specs/launch_sequence.yaml).
 # The HIL launch (isaac_hil.launch.py) also forces this so sim + relays + brain
