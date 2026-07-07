@@ -59,7 +59,7 @@ If any of those differs from 200 mm, your printer is scaling — fix the print d
 ## Re-generating
 
 ```bash
-cd /home/andres/agv-sim
+cd ~/agv-sim
 python3 scripts/generate_apriltag_print_pdf.py             # combined book
 python3 scripts/generate_apriltag_print_pdf.py --per-tag   # one PDF per id
 python3 scripts/generate_apriltag_print_pdf.py --ids 4,18  # subset

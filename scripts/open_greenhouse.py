@@ -31,7 +31,14 @@ import omni.usd
 import omni.kit.app
 import carb
 
-USD_PATH = "/home/andres/agv-sim/src/agv_isaac_sim/worlds/greenhouse_with_robot.usd"
+# Resolve the repo root from this file's location (this script lives in
+# <repo>/scripts/), overridable with AGV_SIM_DIR.
+_AGV_SIM_DIR = os.environ.get(
+    "AGV_SIM_DIR",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+)
+USD_PATH = os.path.join(
+    _AGV_SIM_DIR, "src/agv_isaac_sim/worlds/greenhouse_with_robot.usd")
 ROBOT_PRIM = "/agv"
 ARTICULATION_PRIM = "/agv/base_link"
 

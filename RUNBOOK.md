@@ -17,19 +17,19 @@ pueda consumir telemetría sin que nada frene el flujo.
 
 | Equipo | Rol | WiFi | USB ethernet | Acceso | Notas |
 |---|---|---|---|---|---|
-| **PC sim** (este host) | Isaac Sim + overlay + drive shaping | `192.168.15.79` (`wlp0s20f3`) | `192.168.55.100` (`enxcee573205a54`) | local | host del oráculo y FastAPI :8090 |
-| **Jetson Orin** | Brain (EKF, Nav2, cuVSLAM, AprilTag) | `192.168.15.241` | `192.168.55.1` | SSH `orza / 1001`, VNC `:5900 / 1001` | corre `agv_hil_full.launch.py` |
+| **PC sim** (este host) | Isaac Sim + overlay + drive shaping | `<sim-host-lan-ip>` (`wlp0s20f3`) | `192.168.55.100` (`enxcee573205a54`) | local | host del oráculo y FastAPI :8090 |
+| **Jetson Orin** | Brain (EKF, Nav2, cuVSLAM, AprilTag) | `<jetson-lan-ip>` | `192.168.55.1` | SSH por clave (`ssh-copy-id <jetson-user>@<jetson-lan-ip>`); VNC en `:5900` | corre `agv_hil_full.launch.py` |
 
 Atajos SSH a la Jetson:
 
+# Usa autenticación por clave (una vez): `ssh-copy-id <jetson-user>@<jetson-lan-ip>`.
+# No pongas contraseñas en texto plano ni en el repo.
 ```bash
 # Por USB (más estable, no depende del WiFi)
-sshpass -p '1001' ssh -o StrictHostKeyChecking=no \
-  -o PreferredAuthentications=password -o PubkeyAuthentication=no \
-  orza@192.168.55.1
+ssh <jetson-user>@192.168.55.1
 
 # Por WiFi
-ssh orza@192.168.15.241          # contraseña: 1001
+ssh <jetson-user>@<jetson-lan-ip>
 
 # Si hay alias 'jetson-orin' en ~/.ssh/config:
 ssh jetson-orin
@@ -48,7 +48,7 @@ DDS:
 - **Cyclone** (`rmw_cyclonedds_cpp`)
 - **Domain ID 42** (forzado por `isaac_hil.launch.py`)
 - Multicast OFF, peers unicast en [cyclonedds.xml](cyclonedds.xml):
-  `localhost` + `192.168.15.241` (Jetson)
+  `localhost` + `<jetson-lan-ip>` (Jetson)
 
 > Si la IP del Jetson cambia, **editar `<Peer address="...">` en
 > `cyclonedds.xml`** y reiniciar terminales — DDS lee el archivo al boot.
@@ -138,7 +138,7 @@ Esto:
 Cosas a buscar en la consola de Isaac:
 
 ```
-[AGV] Opened /home/andres/agv-sim/src/agv_isaac_sim/worlds/greenhouse_with_robot.usd
+[AGV] Opened ~/agv-sim/src/agv_isaac_sim/worlds/greenhouse_with_robot.usd
 [AGV][handler] boot scheduled
 [AGV][auto-play] scheduled (disable with AGV_AUTO_PLAY=0)
 [AGV][handler] PhysxContactReportAPI applied to N prims    # N debería ser >0
@@ -219,7 +219,7 @@ Si los 5 comandos responden con datos, el sim está sano.
 ### Foxglove Studio remoto
 
 Desde cualquier máquina del LAN: abrir https://studio.foxglove.dev y
-conectar a `ws://192.168.15.79:8765`. Se ven todos los topics, incluyendo
+conectar a `ws://<sim-host-lan-ip>:8765`. Se ven todos los topics, incluyendo
 los `/agv/sim/*` del oráculo.
 
 ---
@@ -269,7 +269,7 @@ No necesita SSH, rclpy ni DDS — sólo `curl` (o `requests` en Python).
 **Flujo de iteración típico del LLM:**
 
 ```bash
-SIM=http://192.168.55.100:8090   # o 192.168.15.79 por WiFi
+SIM=http://192.168.55.100:8090   # o <sim-host-lan-ip> por WiFi
 
 # 1. Verificar que el sim está vivo
 curl -s $SIM/state | jq '.gt_pose'
