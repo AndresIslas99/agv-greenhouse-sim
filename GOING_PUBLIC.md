@@ -19,16 +19,16 @@ pip install git-filter-repo
 # the operator usernames, and the personal home path.
 cat > /tmp/replacements.txt <<'EOF'
 <JETSON_PASSWORD>==>REDACTED
-192.168.15.241==>JETSON-LAN-IP
-192.168.15.79==>SIM-HOST-LAN-IP
-/home/andres==>/home/USER
-orza==>jetson-user
+<jetson-lan-ip-literal>==>JETSON-LAN-IP
+<sim-host-lan-ip-literal>==>SIM-HOST-LAN-IP
+/home/<user>==>/home/USER
+<leaked-username>==>jetson-user
 EOF
 
 git filter-repo --replace-text /tmp/replacements.txt --force
 
 # Verify nothing survives (should print nothing):
-git grep -nI '192\.168\.15\.\|sshpass' $(git rev-list --all)
+git grep -nI '<the-leaked-literals>' $(git rev-list --all)
 
 # Only if clean — this is irreversible:
 git push --force --mirror https://github.com/AndresIslas99/agv-greenhouse-sim.git
